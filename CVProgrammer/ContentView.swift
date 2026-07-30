@@ -72,6 +72,7 @@ struct ContentView: View {
     @State private var importError: String?
     // Bulk write
     @State private var bulkWriteTask: Task<Void, Never>? = nil
+    @State private var showingSpeedCalibration = false
 
     // autoscroll
     @AppStorage(PreferencesKeys.logAutoScroll) private var logAutoScroll: Bool = true
@@ -121,6 +122,15 @@ struct ContentView: View {
                     }
                 }
 
+                if type == .z21 {
+                    HStack {
+                        Button("Speed curve calibration…") { showingSpeedCalibration = true }
+                            .disabled(!z21.isRunning)
+                        Text("Automatic calibration with a 10819 detector on R-BUS.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 GroupBox(type == .z21 ? "POM (Programming on the Main)" : "Programming Track (Service Mode)") {
                     VStack(alignment: .leading, spacing: 10) {
 
@@ -345,6 +355,9 @@ struct ContentView: View {
                 if let saved = CommandStationType(rawValue: preferredProtocolRaw) {
                     type = saved
                 }
+            }
+            .sheet(isPresented: $showingSpeedCalibration) {
+                SpeedCalibrationView(z21: z21, locoAddress: locoAddress)
             }
             .onReceive(client.cvEvents) { event in
                 switch event {

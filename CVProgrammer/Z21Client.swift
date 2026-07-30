@@ -21,6 +21,14 @@ final class Z21Client: ObservableObject, CVBackend {
 
     private var connection: NWConnection?
 
+    // Latest state of every known R-BUS input. Timestamps are captured as soon
+    // as the UDP datagram is parsed, so calibration timing does not depend on UI refresh.
+    private var feedbackSamples: [Z21FeedbackAddress: Z21FeedbackSample] = [:]
+
+    func feedbackSample(for address: Z21FeedbackAddress) -> Z21FeedbackSample? {
+        feedbackSamples[address]
+    }
+
     private var waiters: [UInt8: CheckedContinuation<UInt8?, Never>] = [:]
     private var writeWaiters: [UInt8: CheckedContinuation<Bool, Never>] = [:]
 
@@ -151,6 +159,10 @@ final class Z21Client: ObservableObject, CVBackend {
         }
     }
 
+    func sendCalibrationPacket(_ data: Data, note: String? = nil) {
+        send(data, note: note)
+    }
+
     private func send(_ data: Data, note: String? = nil) {
         guard let conn = connection else {
             appendLog("Not connected; cannot send.")
@@ -195,6 +207,9 @@ final class Z21Client: ObservableObject, CVBackend {
                         case .cvNack:
                             self?.eventsSubject.send(.failure("CV read/write NACK"))
 
+                        case .rBusSnapshot(let groupIndex, let statuses):
+                            self?.applyRBusSnapshot(groupIndex: groupIndex, statuses: statuses)
+
                         case .unknown:
                             break
                     }
@@ -203,6 +218,22 @@ final class Z21Client: ObservableObject, CVBackend {
                     self?.appendLog("  event: \(zEvent.description)")
                 }
                 self?.beginReceiveLoop()
+            }
+        }
+    }
+
+    private func applyRBusSnapshot(groupIndex: UInt8, statuses: [UInt8]) {
+        let timestamp = MonotonicTimestamp.now()
+        let firstModule = Int(groupIndex) * 10 + 1
+        for (offset, byte) in statuses.prefix(10).enumerated() {
+            let module = firstModule + offset
+            for bit in 0..<8 {
+                let address = Z21FeedbackAddress(module: module, input: bit + 1)
+                let occupied = (byte & (1 << bit)) != 0
+                if feedbackSamples[address]?.occupied != occupied {
+                    appendLog("R-BUS module \(module), input \(bit + 1): \(occupied ? "occupied" : "free")")
+                }
+                feedbackSamples[address] = Z21FeedbackSample(occupied: occupied, timestamp: timestamp)
             }
         }
     }
@@ -252,6 +283,7 @@ private extension Data {
 enum Z21Event: Equatable {
     case cvResult(cvAddress0Based: UInt8, value: UInt8)
     case cvNack
+    case rBusSnapshot(groupIndex: UInt8, statuses: [UInt8])
     case unknown
 
     var description: String {
@@ -260,6 +292,8 @@ enum Z21Event: Equatable {
                 return "CV_RESULT cv=\(cv0 + 1) value=\(value)"
             case .cvNack:
                 return "CV_NACK"
+            case .rBusSnapshot(let groupIndex, let statuses):
+                return "R_BUS group=\(groupIndex) status=\(statuses.map { String(format: "%02X", $0) }.joined(separator: " "))"
             case .unknown:
                 return "UNKNOWN"
         }

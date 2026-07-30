@@ -25,6 +25,8 @@
 		C7A8370B2F12EFF0000B8C90 /* DCCEXBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7A837092F12EFF0000B8C90 /* DCCEXBackend.swift */; };
 		C7A8370D2F13D6CA000B8C90 /* PreferencesKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7A8370C2F13D6CA000B8C90 /* PreferencesKeys.swift */; };
 		C7A8370F2F13D6E8000B8C90 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7A8370E2F13D6E8000B8C90 /* SettingsView.swift */; };
+		C7E1F2B4301BDE59002C395B /* Z21CalibrationSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7E1F2B2301BDE59002C395B /* Z21CalibrationSupport.swift */; };
+		C7E1F2B5301BDE59002C395B /* SpeedCalibration.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7E1F2B3301BDE59002C395B /* SpeedCalibration.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -67,6 +69,8 @@
 		C7A837092F12EFF0000B8C90 /* DCCEXBackend.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DCCEXBackend.swift; sourceTree = "<group>"; };
 		C7A8370C2F13D6CA000B8C90 /* PreferencesKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesKeys.swift; sourceTree = "<group>"; };
 		C7A8370E2F13D6E8000B8C90 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		C7E1F2B2301BDE59002C395B /* Z21CalibrationSupport.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Z21CalibrationSupport.swift; sourceTree = "<group>"; };
+		C7E1F2B3301BDE59002C395B /* SpeedCalibration.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SpeedCalibration.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -117,6 +121,8 @@
 		C7A03EBC2EF8B87900D82C66 /* CVProgrammer */ = {
 			isa = PBXGroup;
 			children = (
+				C7E1F2B3301BDE59002C395B /* SpeedCalibration.swift */,
+				C7E1F2B2301BDE59002C395B /* Z21CalibrationSupport.swift */,
 				C7A837082F12EFF0000B8C90 /* CVBackend.swift */,
 				C7A837092F12EFF0000B8C90 /* DCCEXBackend.swift */,
 				C7A03EBD2EF8B87900D82C66 /* CVProgrammerApp.swift */,
@@ -295,6 +301,7 @@
 			files = (
 				C7A8370B2F12EFF0000B8C90 /* DCCEXBackend.swift in Sources */,
 				C7A8370D2F13D6CA000B8C90 /* PreferencesKeys.swift in Sources */,
+				C7E1F2B4301BDE59002C395B /* Z21CalibrationSupport.swift in Sources */,
 				C7A837052F12E149000B8C90 /* CommandStation.swift in Sources */,
 				C7A03EC02EF8B87900D82C66 /* ContentView.swift in Sources */,
 				C7A03EBE2EF8B87900D82C66 /* CVProgrammerApp.swift in Sources */,
@@ -304,6 +311,7 @@
 				C7A03EEF2EF8BDB900D82C66 /* BitEditorView.swift in Sources */,
 				C7A8370F2F13D6E8000B8C90 /* SettingsView.swift in Sources */,
 				C7A03EE92EF8B97E00D82C66 /* Z21Client.swift in Sources */,
+				C7E1F2B5301BDE59002C395B /* SpeedCalibration.swift in Sources */,
 				C7A03EEB2EF8B99E00D82C66 /* Z21Protocol.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

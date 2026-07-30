@@ -75,7 +75,12 @@ enum Z21Protocol {
         let b = [UInt8](data)
         guard b.count >= 6 else { return .unknown }
 
-        // Basic check: Z21 dataset header 0x40 0x00
+        // LAN_RMBUS_DATACHANGED: Header 0x80 0x00, group index, 10 status bytes.
+        if b.count >= 15, b[2] == 0x80, b[3] == 0x00 {
+            return .rBusSnapshot(groupIndex: b[4], statuses: Array(b[5..<15]))
+        }
+
+        // Basic check for X-BUS datasets: Z21 header 0x40 0x00.
         // Dataset = [lenLE0 lenLE1][hdr0 hdr1][...]
         guard b.count >= 4, b[2] == 0x40, b[3] == 0x00 else { return .unknown }
 
