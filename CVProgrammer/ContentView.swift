@@ -84,6 +84,16 @@ struct ContentView: View {
         type == .dccEx && dcc.progTrackBusy
     }
 
+    private var programmingTrackStatusColor: Color {
+        guard dcc.isRunning else { return .gray }
+        return dcc.progTrackBusy ? .orange : .green
+    }
+
+    private var programmingTrackStatusText: String {
+        guard dcc.isRunning else { return "Programming track status unknown" }
+        return dcc.progTrackBusy ? "Programming track busy…" : "Programming track ready"
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
@@ -140,10 +150,10 @@ struct ContentView: View {
                         if type == .dccEx {
                             HStack(spacing: 8) {
                                 Circle()
-                                    .fill(dcc.progTrackBusy ? .orange : .green)
+                                    .fill(programmingTrackStatusColor)
                                     .frame(width: 10, height: 10)
 
-                                Text(dcc.progTrackBusy ? "Programming track busy…" : "Programming track ready")
+                                Text(programmingTrackStatusText)
                                     .font(.footnote)
                                     .foregroundStyle(.secondary)
                             }

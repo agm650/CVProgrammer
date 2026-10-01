@@ -140,10 +140,18 @@ final class DCCEXBackend: ObservableObject, CVBackend {
     private func receiveLoop() {
         connection?.receive(minimumIncompleteLength: 1, maximumLength: 4096) { [weak self] data, _, _, _ in
             guard let self, let data else { return }
-            self.rxBuffer.append(data)
-            self.parseBuffer()
-            self.receiveLoop()
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.processReceivedDataOnMain(data)
+                self.receiveLoop()
+            }
         }
+    }
+
+    @MainActor
+    private func processReceivedDataOnMain(_ data: Data) {
+        rxBuffer.append(data)
+        parseBuffer()
     }
 
     private func parseBuffer() {
