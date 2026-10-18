@@ -57,7 +57,47 @@ enum Roco10819Profile {
             model: "10819 Z21 Detector X16",
             programmingMode: .pomLocomotive,
             pseudoAddress: 9_819,
-            parameters: []
+            parameters: [
+                try DeviceParameter(
+                    id: "rbus-address",
+                    name: "R-BUS Address",
+                    cv: 99,
+                    minimum: 1,
+                    maximum: 19,
+                    help: "Base address used for inputs 1 through 8. The next address is used for inputs 9 through 16.",
+                    isReadSupported: false
+                ),
+                try DeviceParameter(
+                    id: "threshold",
+                    name: "Detection Threshold",
+                    cv: 100,
+                    minimum: 0,
+                    maximum: 70,
+                    unit: "mA",
+                    help: "0 selects 0.5 mA; values 1 through 70 select the corresponding current in mA.",
+                    isReadSupported: false
+                ),
+                try DeviceParameter(
+                    id: "response-time",
+                    name: "Response Time",
+                    cv: 101,
+                    minimum: 0,
+                    maximum: 16,
+                    unit: "10 ms",
+                    help: "0 and 1 select 10 ms; values 2 through 16 select 20 through 160 ms.",
+                    isReadSupported: false
+                ),
+                try DeviceParameter(
+                    id: "release-delay",
+                    name: "Release Delay",
+                    cv: 102,
+                    minimum: 0,
+                    maximum: 255,
+                    unit: "10 ms",
+                    help: "Delay before a clear section is reported, from 0 through 2550 ms.",
+                    isReadSupported: false
+                )
+            ]
         )
     }
 }

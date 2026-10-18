@@ -2,6 +2,7 @@ import SwiftUI
 
 struct Roco10819MonitorView: View {
     let groups: [RBusGroupState]
+    let programmingService: (any DeviceProgramming)?
     @State private var baseAddress = UInt8(1)
 
     var body: some View {
@@ -35,6 +36,15 @@ struct Roco10819MonitorView: View {
                 }
             }
 
+            if let programmingService,
+               let profile = try? Roco10819Profile.makeDeviceProfile() {
+                Divider()
+                Roco10819ProgrammingView(
+                    profile: profile,
+                    service: programmingService
+                )
+            }
+
             Spacer()
         }
         .padding()
@@ -44,6 +54,107 @@ struct Roco10819MonitorView: View {
 
     private var snapshot: Roco10819Snapshot? {
         try? Roco10819Snapshot(baseAddress: baseAddress, groups: groups)
+    }
+}
+
+private struct Roco10819ProgrammingView: View {
+    let profile: DeviceProfile
+    let service: any DeviceProgramming
+
+    @State private var selectedParameterID: String
+    @State private var value: Int
+    @State private var isWriting = false
+    @State private var resultMessage: String?
+
+    init(profile: DeviceProfile, service: any DeviceProgramming) {
+        self.profile = profile
+        self.service = service
+        let initialParameter = profile.parameters.first
+        _selectedParameterID = State(initialValue: initialParameter?.id ?? "")
+        _value = State(initialValue: Int(initialParameter?.minimum ?? 0))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Programming")
+                .font(.headline)
+            Label(
+                "Put the 10819 into programming mode before writing.",
+                systemImage: "exclamationmark.triangle.fill"
+            )
+            .foregroundStyle(.orange)
+
+            if let parameter {
+                HStack {
+                    Picker("Parameter", selection: $selectedParameterID) {
+                        ForEach(profile.parameters) { item in
+                            Text(item.name).tag(item.id)
+                        }
+                    }
+                    .frame(maxWidth: 300)
+                    .onChange(of: selectedParameterID) { _ in
+                        value = Int(self.parameter?.minimum ?? 0)
+                        resultMessage = nil
+                    }
+
+                    Stepper(
+                        value: $value,
+                        in: Int(parameter.minimum)...Int(parameter.maximum)
+                    ) {
+                        Text("Value: \(value)\(unitSuffix(for: parameter))")
+                    }
+
+                    Button("Write") {
+                        write(parameter)
+                    }
+                    .disabled(isWriting)
+                    .accessibilityIdentifier("roco10819.write")
+                }
+
+                if let help = parameter.help {
+                    Text(help)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if !parameter.isReadSupported {
+                    Text("Reading this parameter is not supported; a successful send does not confirm the value.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if let resultMessage {
+                Text(resultMessage)
+                    .font(.caption)
+                    .accessibilityIdentifier("roco10819.programmingResult")
+            }
+        }
+    }
+
+    private var parameter: DeviceParameter? {
+        try? profile.parameter(id: selectedParameterID)
+    }
+
+    private func unitSuffix(for parameter: DeviceParameter) -> String {
+        parameter.unit.map { " \($0)" } ?? ""
+    }
+
+    private func write(_ parameter: DeviceParameter) {
+        isWriting = true
+        resultMessage = nil
+        Task {
+            do {
+                try await service.write(
+                    parameter: parameter,
+                    value: UInt8(value),
+                    profile: profile
+                )
+                resultMessage = String(localized: "Write command sent.")
+            } catch {
+                resultMessage = error.localizedDescription
+            }
+            isWriting = false
+        }
     }
 }
 

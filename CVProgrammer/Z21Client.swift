@@ -20,6 +20,7 @@ final class Z21Client: ObservableObject, CVBackend {
 
     private let session: Z21Session
     let rBusService: RBusService
+    let deviceProgrammingService: Z21DeviceProgrammingService
     private var connectionTask: Task<Void, Never>?
     private var messageTask: Task<Void, Never>?
     private var stateTask: Task<Void, Never>?
@@ -40,6 +41,9 @@ final class Z21Client: ObservableObject, CVBackend {
         )
         self.session = session
         rBusService = RBusService(session: session)
+        deviceProgrammingService = Z21DeviceProgrammingService(
+            commandSender: session
+        )
         observeSession()
     }
 

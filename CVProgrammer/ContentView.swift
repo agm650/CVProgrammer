@@ -417,7 +417,10 @@ struct ContentView: View {
                 Text(importError ?? "")
             }
             .sheet(isPresented: $isShowingRBusMonitor) {
-                RBusMonitorView(service: z21.rBusService)
+                RBusMonitorView(
+                    service: z21.rBusService,
+                    programmingService: z21.deviceProgrammingService
+                )
             }
             .fileExporter(
                 isPresented: $isExporting,

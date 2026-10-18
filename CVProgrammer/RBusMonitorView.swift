@@ -3,11 +3,16 @@ import SwiftUI
 struct RBusMonitorView: View {
     @StateObject private var model: RBusMonitorViewModel
     @State private var isShowingRoco10819 = false
+    private let programmingService: (any DeviceProgramming)?
 
-    init(service: any RBusServicing) {
+    init(
+        service: any RBusServicing,
+        programmingService: (any DeviceProgramming)? = nil
+    ) {
         _model = StateObject(
             wrappedValue: RBusMonitorViewModel(service: service)
         )
+        self.programmingService = programmingService
     }
 
     var body: some View {
@@ -36,7 +41,10 @@ struct RBusMonitorView: View {
         .padding()
         .frame(minWidth: 760, minHeight: 560)
         .sheet(isPresented: $isShowingRoco10819) {
-            Roco10819MonitorView(groups: model.groups)
+            Roco10819MonitorView(
+                groups: model.groups,
+                programmingService: programmingService
+            )
         }
         .task { await model.start() }
         .onDisappear { model.stop() }
