@@ -1,124 +1,180 @@
-//
-//  Z21Protocol.swift
-//  CVProgrammer
-//
-//  Created by Luc Dandoy on 22/12/2025.
-//
 import Foundation
 
-enum Z21Protocol {
+enum Z21Command: Equatable, Sendable {
+    case pomReadByte(locomotiveAddress: UInt16, cvAddress: UInt16)
+    case pomWriteByte(locomotiveAddress: UInt16, cvAddress: UInt16, value: UInt8)
+}
 
-    // MARK: - POM write byte (same as before, but keep it)
+enum Z21Message: Equatable, Sendable {
+    case cvResult(cvAddress: UInt16, value: UInt8)
+    case cvNack
+    case unknown(header: UInt16, payload: Data)
+}
 
-    /// LAN_X_CV_POM_WRITE_BYTE (no reply). :contentReference[oaicite:5]{index=5}
-    static func makePOMWriteBytePacket(locoAddress: UInt16, cvAddress0Based: UInt8, value: UInt8) -> Data {
-        let (adrMSB, adrLSB) = splitLocoAddressForXBus(locoAddress)
+enum Z21ProtocolCodecError: Error, Equatable, LocalizedError, Sendable {
+    case packetTooShort(minimum: Int, actual: Int)
+    case dataLengthMismatch(expected: Int, actual: Int)
+    case unsupportedHeader(UInt16)
+    case invalidPayloadLength(expected: Int, actual: Int)
+    case invalidChecksum
+    case invalidLocomotiveAddress(UInt16)
+    case invalidCVAddress(UInt16)
 
-        let cvMSB = UInt8((cvAddress0Based >> 8) & 0xFF)
-        let cvLSB = UInt8(cvAddress0Based & 0xFF)
+    var errorDescription: String? {
+        switch self {
+            case .packetTooShort(let minimum, let actual):
+                return "Z21 packet is too short: expected at least \(minimum) bytes, got \(actual)."
+            case .dataLengthMismatch(let expected, let actual):
+                return "Z21 DataLen is \(expected), but the packet contains \(actual) bytes."
+            case .unsupportedHeader(let header):
+                return String(format: "Unsupported Z21 header: 0x%04X.", header)
+            case .invalidPayloadLength(let expected, let actual):
+                return "Invalid Z21 payload length: expected \(expected) bytes, got \(actual)."
+            case .invalidChecksum:
+                return "Invalid Z21 X-BUS checksum."
+            case .invalidLocomotiveAddress(let address):
+                return "Invalid locomotive address: \(address)."
+            case .invalidCVAddress(let address):
+                return "Invalid zero-based CV address: \(address)."
+        }
+    }
+}
 
-        // DB3 = 111011MM => base 0xEC, MM carries CVAdr_MSB (low bits). :contentReference[oaicite:6]{index=6}
-        let option = UInt8(0xEC | (cvMSB & 0x03))
+protocol Z21ProtocolCodec: Sendable {
+    func encode(_ command: Z21Command) throws -> Data
+    func decode(_ packet: Data) throws -> Z21Message
+}
 
-        var payload: [UInt8] = [
-            0x40, 0x00, // Header
-            0xE6,       // X-Header
-            0x30,       // DB0
-            adrMSB,     // DB1
-            adrLSB,     // DB2
-            option,     // DB3
-            cvLSB,      // DB4
-            value       // DB5
-        ]
+struct DefaultZ21ProtocolCodec: Z21ProtocolCodec {
+    private static let xBusHeader: UInt16 = 0x0040
+    private static let maximumLocomotiveAddress: UInt16 = 9_999
+    private static let maximumCVAddress: UInt16 = 1_023
 
-        let xorByte = xorChecksum(bytes: Array(payload.dropFirst(2))) // XOR from X-Header..DB5
-        payload.append(xorByte)
-
-        return withDataLenPrefix(0x000C, payload: payload) // total len 12 :contentReference[oaicite:7]{index=7}
+    func encode(_ command: Z21Command) throws -> Data {
+        switch command {
+            case .pomReadByte(let locomotiveAddress, let cvAddress):
+                return try encodePOM(
+                    locomotiveAddress: locomotiveAddress,
+                    cvAddress: cvAddress,
+                    optionBase: 0xE4,
+                    value: 0x00
+                )
+            case .pomWriteByte(let locomotiveAddress, let cvAddress, let value):
+                return try encodePOM(
+                    locomotiveAddress: locomotiveAddress,
+                    cvAddress: cvAddress,
+                    optionBase: 0xEC,
+                    value: value
+                )
+        }
     }
 
-    // MARK: - POM read byte (new)
+    func decode(_ packet: Data) throws -> Z21Message {
+        let bytes = [UInt8](packet)
+        guard bytes.count >= 4 else {
+            throw Z21ProtocolCodecError.packetTooShort(
+                minimum: 4,
+                actual: bytes.count
+            )
+        }
 
-    /// LAN_X_CV_POM_READ_BYTE (reply: CV_NACK or CV_RESULT). :contentReference[oaicite:8]{index=8}
-    static func makePOMReadBytePacket(locoAddress: UInt16, cvAddress0Based: UInt8) -> Data {
-        let (adrMSB, adrLSB) = splitLocoAddressForXBus(locoAddress)
+        let dataLength = Int(bytes[0]) | (Int(bytes[1]) << 8)
+        guard dataLength == bytes.count else {
+            throw Z21ProtocolCodecError.dataLengthMismatch(
+                expected: dataLength,
+                actual: bytes.count
+            )
+        }
 
-        let cvMSB = UInt8((cvAddress0Based >> 8) & 0xFF)
-        let cvLSB = UInt8(cvAddress0Based & 0xFF)
+        let header = UInt16(bytes[2]) | (UInt16(bytes[3]) << 8)
+        guard header == Self.xBusHeader else {
+            throw Z21ProtocolCodecError.unsupportedHeader(header)
+        }
 
-        // DB3 = 111001MM => base 0xE4, MM carries CVAdr_MSB (low bits). :contentReference[oaicite:9]{index=9}
-        let option = UInt8(0xE4 | (cvMSB & 0x03))
+        guard bytes.count >= 7 else {
+            throw Z21ProtocolCodecError.packetTooShort(
+                minimum: 7,
+                actual: bytes.count
+            )
+        }
 
-        var payload: [UInt8] = [
-            0x40, 0x00, // Header
-            0xE6,       // X-Header
-            0x30,       // DB0
-            adrMSB,     // DB1
-            adrLSB,     // DB2
-            option,     // DB3
-            cvLSB,      // DB4
-            0x00        // DB5 must be 0 for read. :contentReference[oaicite:10]{index=10}
-        ]
+        let xBusBytes = bytes[4...]
+        guard xBusBytes.reduce(0, ^) == 0 else {
+            throw Z21ProtocolCodecError.invalidChecksum
+        }
 
-        let xorByte = xorChecksum(bytes: Array(payload.dropFirst(2))) // XOR from X-Header..DB5
-        payload.append(xorByte)
+        let xHeader = bytes[4]
+        let db0 = bytes[5]
 
-        return withDataLenPrefix(0x000C, payload: payload) // total len 12 :contentReference[oaicite:11]{index=11}
-    }
-
-    // MARK: - Inbound parsing (CV_RESULT / CV_NACK)
-
-    /// Parses Z21 inbound messages we care about:
-    /// - LAN_X_CV_RESULT: Header 0x40 0x00, XHdr 0x64, DB0 0x14, DB1/2=CV, DB3=Value :contentReference[oaicite:12]{index=12}
-    /// - LAN_X_CV_NACK:   Header 0x40 0x00, XHdr 0x61, DB0 0x13 :contentReference[oaicite:13]{index=13}
-    static func parseInbound(_ data: Data) -> Z21Event {
-        let b = [UInt8](data)
-        guard b.count >= 6 else { return .unknown }
-
-        // Basic check: Z21 dataset header 0x40 0x00
-        // Dataset = [lenLE0 lenLE1][hdr0 hdr1][...]
-        guard b.count >= 4, b[2] == 0x40, b[3] == 0x00 else { return .unknown }
-
-        // Need at least X-Header + DB0
-        guard b.count >= 6 else { return .unknown }
-        let xHeader = b[4]
-        let db0 = b[5]
-
-        // CV_NACK: XHdr 0x61, DB0 0x13 :contentReference[oaicite:14]{index=14}
         if xHeader == 0x61, db0 == 0x13 {
+            guard bytes.count == 7 else {
+                throw Z21ProtocolCodecError.invalidPayloadLength(
+                    expected: 3,
+                    actual: bytes.count - 4
+                )
+            }
             return .cvNack
         }
 
-        // CV_RESULT: XHdr 0x64, DB0 0x14, DB1=CV_MSB, DB2=CV_LSB, DB3=Value :contentReference[oaicite:15]{index=15}
-        if xHeader == 0x64, db0 == 0x14, b.count >= 9 {
-            let cvMSB = UInt16(b[6])
-            let cvLSB = UInt16(b[7])
-            let cv0 = (cvMSB << 8) | cvLSB
-            let value = b[8]
-            return .cvResult(cvAddress0Based: UInt8(cv0), value: value)
+        if xHeader == 0x64, db0 == 0x14 {
+            guard bytes.count == 10 else {
+                throw Z21ProtocolCodecError.invalidPayloadLength(
+                    expected: 6,
+                    actual: bytes.count - 4
+                )
+            }
+
+            let cvAddress = (UInt16(bytes[6]) << 8) | UInt16(bytes[7])
+            guard cvAddress <= Self.maximumCVAddress else {
+                throw Z21ProtocolCodecError.invalidCVAddress(cvAddress)
+            }
+            return .cvResult(cvAddress: cvAddress, value: bytes[8])
         }
 
-        return .unknown
+        return .unknown(
+            header: header,
+            payload: Data(bytes.dropFirst(4).dropLast())
+        )
     }
 
-    // MARK: - Helpers
+    private func encodePOM(
+        locomotiveAddress: UInt16,
+        cvAddress: UInt16,
+        optionBase: UInt8,
+        value: UInt8
+    ) throws -> Data {
+        guard (1...Self.maximumLocomotiveAddress).contains(locomotiveAddress) else {
+            throw Z21ProtocolCodecError.invalidLocomotiveAddress(locomotiveAddress)
+        }
+        guard cvAddress <= Self.maximumCVAddress else {
+            throw Z21ProtocolCodecError.invalidCVAddress(cvAddress)
+        }
 
-    /// Spec uses loco address = (Adr_MSB & 0x3F) << 8 + Adr_LSB for these POM params. :contentReference[oaicite:16]{index=16}
-    static func splitLocoAddressForXBus(_ address: UInt16) -> (UInt8, UInt8) {
-        let msb = UInt8((address >> 8) & 0x3F) // keep low 6 bits
-        let lsb = UInt8(address & 0xFF)
-        return (msb, lsb)
-    }
+        let addressMSB = UInt8((locomotiveAddress >> 8) & 0x3F)
+        let addressLSB = UInt8(locomotiveAddress & 0xFF)
+        let cvMSB = UInt8((cvAddress >> 8) & 0x03)
+        let cvLSB = UInt8(cvAddress & 0xFF)
+        let option = optionBase | cvMSB
 
-    static func xorChecksum(bytes: [UInt8]) -> UInt8 {
-        bytes.reduce(0x00, ^)
-    }
+        var xBusPayload: [UInt8] = [
+            0xE6,
+            0x30,
+            addressMSB,
+            addressLSB,
+            option,
+            cvLSB,
+            value
+        ]
+        xBusPayload.append(xBusPayload.reduce(0, ^))
 
-    static func withDataLenPrefix(_ dataLen: UInt16, payload: [UInt8]) -> Data {
-        var out = Data()
-        out.append(UInt8(dataLen & 0xFF))
-        out.append(UInt8((dataLen >> 8) & 0xFF))
-        out.append(contentsOf: payload)
-        return out
+        let dataLength = UInt16(4 + xBusPayload.count)
+        var packet = Data([
+            UInt8(dataLength & 0xFF),
+            UInt8((dataLength >> 8) & 0xFF),
+            UInt8(Self.xBusHeader & 0xFF),
+            UInt8((Self.xBusHeader >> 8) & 0xFF)
+        ])
+        packet.append(contentsOf: xBusPayload)
+        return packet
     }
 }

@@ -19,6 +19,7 @@ final class Z21Client: ObservableObject, CVBackend {
     var cvEvents: AnyPublisher<CVEvent, Never> { eventsSubject.eraseToAnyPublisher() }
 
     private let transportFactory: @MainActor () -> any Z21Transport
+    private let protocolCodec: any Z21ProtocolCodec
     private var transport: (any Z21Transport)?
     private var connectionTask: Task<Void, Never>?
     private var receiveTask: Task<Void, Never>?
@@ -31,9 +32,11 @@ final class Z21Client: ObservableObject, CVBackend {
     init(
         transportFactory: @escaping @MainActor () -> any Z21Transport = {
             Z21UDPTransport()
-        }
+        },
+        protocolCodec: any Z21ProtocolCodec = DefaultZ21ProtocolCodec()
     ) {
         self.transportFactory = transportFactory
+        self.protocolCodec = protocolCodec
     }
 
     func connect(host: String, port: UInt16) {
@@ -105,8 +108,17 @@ final class Z21Client: ObservableObject, CVBackend {
             eventsSubject.send(.failure("Invalid CV number"))
             return
         }
-        let pkt = Z21Protocol.makePOMReadBytePacket(locoAddress: locoAddress, cvAddress0Based: cv - 1)
-        send(pkt)
+        do {
+            let packet = try protocolCodec.encode(
+                .pomReadByte(
+                    locomotiveAddress: locoAddress,
+                    cvAddress: UInt16(cv - 1)
+                )
+            )
+            send(packet)
+        } catch {
+            eventsSubject.send(.failure(error.localizedDescription))
+        }
     }
 
     func writeCV(locoAddress: UInt16?, cv: UInt8, value: UInt8) {
@@ -115,8 +127,18 @@ final class Z21Client: ObservableObject, CVBackend {
             eventsSubject.send(.failure("Invalid CV number"))
             return
         }
-        let pkt = Z21Protocol.makePOMWriteBytePacket(locoAddress: locoAddress, cvAddress0Based: cv - 1, value: value)
-        send(pkt)
+        do {
+            let packet = try protocolCodec.encode(
+                .pomWriteByte(
+                    locomotiveAddress: locoAddress,
+                    cvAddress: UInt16(cv - 1),
+                    value: value
+                )
+            )
+            send(packet)
+        } catch {
+            eventsSubject.send(.failure(error.localizedDescription))
+        }
     }
 
     func readCVAsync(locoAddress: UInt16, cv: UInt8, timeoutMs: Int = 800) async -> UInt8? {
@@ -132,11 +154,19 @@ final class Z21Client: ObservableObject, CVBackend {
 
                 self.waiters[cv1] = cont
 
-                let pkt = Z21Protocol.makePOMReadBytePacket(
-                    locoAddress: locoAddress,
-                    cvAddress0Based: cv - 1
-                )
-                self.send(pkt)
+                do {
+                    let packet = try self.protocolCodec.encode(
+                        .pomReadByte(
+                            locomotiveAddress: locoAddress,
+                            cvAddress: UInt16(cv - 1)
+                        )
+                    )
+                    self.send(packet)
+                } catch {
+                    self.waiters.removeValue(forKey: cv1)?.resume(returning: nil)
+                    self.eventsSubject.send(.failure(error.localizedDescription))
+                    return
+                }
 
                 Task { [weak self] in
                     try? await Task.sleep(nanoseconds: UInt64(timeoutMs) * 1_000_000)
@@ -165,12 +195,20 @@ final class Z21Client: ObservableObject, CVBackend {
                 self.writeWaiters[cv1] = cont
 
                 // send
-                let pkt = Z21Protocol.makePOMWriteBytePacket(
-                    locoAddress: locoAddress,
-                    cvAddress0Based: cv - 1,
-                    value: value
-                )
-                self.send(pkt, note: "WRITE CV \(cv)=\(value)")
+                do {
+                    let packet = try self.protocolCodec.encode(
+                        .pomWriteByte(
+                            locomotiveAddress: locoAddress,
+                            cvAddress: UInt16(cv - 1),
+                            value: value
+                        )
+                    )
+                    self.send(packet, note: "WRITE CV \(cv)=\(value)")
+                } catch {
+                    self.writeWaiters.removeValue(forKey: cv1)?.resume(returning: false)
+                    self.eventsSubject.send(.failure(error.localizedDescription))
+                    return
+                }
 
                 // timeout
                 Task { [weak self] in
@@ -206,29 +244,35 @@ final class Z21Client: ObservableObject, CVBackend {
     private func handleInboundPacket(_ content: Data) {
         appendLog("← RX bytes: \(content.hexString)")
 
-        let zEvent = Z21Protocol.parseInbound(content)
+        do {
+            let message = try protocolCodec.decode(content)
 
-        switch zEvent {
-            case .cvResult(let cv0, let value):
-                // convert 0-based cv -> 1-based for UI
-                let cv1 = UInt8(cv0) + 1
-                eventsSubject.send(.cvReadResult(cv: cv1, value: value))
-                if let continuation = waiters.removeValue(forKey: cv1) {
-                    continuation.resume(returning: value)
-                }
-                // If writing CV desarm waiter
-                if let continuation = writeWaiters.removeValue(forKey: cv1) {
-                    continuation.resume(returning: true)
-                }
+            switch message {
+                case .cvResult(let cvAddress, let value):
+                    guard let cv = UInt8(exactly: cvAddress + 1) else {
+                        throw Z21ProtocolCodecError.invalidCVAddress(cvAddress)
+                    }
+                    eventsSubject.send(.cvReadResult(cv: cv, value: value))
+                    if let continuation = waiters.removeValue(forKey: cv) {
+                        continuation.resume(returning: value)
+                    }
+                    // If writing CV desarm waiter
+                    if let continuation = writeWaiters.removeValue(forKey: cv) {
+                        continuation.resume(returning: true)
+                    }
+                    appendLog("  event: CV_RESULT cv=\(cv) value=\(value)")
 
-            case .cvNack:
-                eventsSubject.send(.failure("CV read/write NACK"))
+                case .cvNack:
+                    eventsSubject.send(.failure("CV read/write NACK"))
+                    appendLog("  event: CV_NACK")
 
-            case .unknown:
-                break
+                case .unknown(let header, _):
+                    appendLog(String(format: "  event: UNKNOWN header=0x%04X", header))
+            }
+        } catch {
+            appendLog("  protocol error: \(error.localizedDescription)")
+            eventsSubject.send(.failure(error.localizedDescription))
         }
-
-        appendLog("  event: \(zEvent.description)")
     }
 
     func appendLog(_ line: String) {
@@ -254,22 +298,5 @@ final class Z21Client: ObservableObject, CVBackend {
 private extension Data {
     var hexString: String {
         map { String(format: "%02X", $0) }.joined(separator: " ")
-    }
-}
-
-enum Z21Event: Equatable {
-    case cvResult(cvAddress0Based: UInt8, value: UInt8)
-    case cvNack
-    case unknown
-
-    var description: String {
-        switch self {
-            case .cvResult(let cv0, let value):
-                return "CV_RESULT cv=\(cv0 + 1) value=\(value)"
-            case .cvNack:
-                return "CV_NACK"
-            case .unknown:
-                return "UNKNOWN"
-        }
     }
 }
