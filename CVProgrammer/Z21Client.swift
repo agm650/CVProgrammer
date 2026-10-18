@@ -5,7 +5,6 @@
 //  Created by Luc Dandoy on 22/12/2025.
 //
 import Foundation
-import Network
 import Combine
 
 @MainActor
@@ -19,46 +18,81 @@ final class Z21Client: ObservableObject, CVBackend {
     private let eventsSubject = PassthroughSubject<CVEvent, Never>()
     var cvEvents: AnyPublisher<CVEvent, Never> { eventsSubject.eraseToAnyPublisher() }
 
-    private var connection: NWConnection?
+    private let transportFactory: @MainActor () -> any Z21Transport
+    private var transport: (any Z21Transport)?
+    private var connectionTask: Task<Void, Never>?
+    private var receiveTask: Task<Void, Never>?
+    private var connectionID = UUID()
 
     private var waiters: [UInt8: CheckedContinuation<UInt8?, Never>] = [:]
     private var writeWaiters: [UInt8: CheckedContinuation<Bool, Never>] = [:]
 
 
+    init(
+        transportFactory: @escaping @MainActor () -> any Z21Transport = {
+            Z21UDPTransport()
+        }
+    ) {
+        self.transportFactory = transportFactory
+    }
+
     func connect(host: String, port: UInt16) {
         disconnect()
 
-        let h = NWEndpoint.Host(host)
-        guard let p = NWEndpoint.Port(rawValue: port) else {
-            appendLog("Invalid port: \(port)")
-            return
-        }
-
-        let conn = NWConnection(host: h, port: p, using: .udp)
-        self.connection = conn
-
-        conn.stateUpdateHandler = { [weak self] state in
-            Task { @MainActor in
-                self?.handleState(state)
-            }
-        }
-
-        conn.start(queue: .global())
+        let newTransport = transportFactory()
+        let newConnectionID = UUID()
+        transport = newTransport
+        connectionID = newConnectionID
         isRunning = true
 
         appendLog("Starting UDP connection to \(host):\(port)")
-        beginReceiveLoop()
+
+        receiveTask = Task { [weak self] in
+            for await packet in newTransport.incomingPackets {
+                guard !Task.isCancelled else { return }
+                self?.handleInboundPacket(packet)
+            }
+        }
+
+        connectionTask = Task { [weak self] in
+            do {
+                try await newTransport.connect(host: host, port: port)
+                guard let self, self.connectionID == newConnectionID else { return }
+                self.appendLog("UDP ready.")
+            } catch is CancellationError {
+                return
+            } catch {
+                guard let self, self.connectionID == newConnectionID else { return }
+                self.appendLog("Connection failed: \(error.localizedDescription)")
+                self.disconnect()
+            }
+        }
     }
 
     func disconnect() {
-        connection?.cancel()
-        connection = nil
+        connectionID = UUID()
+        connectionTask?.cancel()
+        connectionTask = nil
+        receiveTask?.cancel()
+        receiveTask = nil
+
+        if let transport {
+            Task {
+                await transport.close()
+            }
+        }
+        transport = nil
         isRunning = false
-        
-        for (_, cont) in waiters {
-            cont.resume(returning: nil)
+
+        for (_, continuation) in waiters {
+            continuation.resume(returning: nil)
         }
         waiters.removeAll()
+
+        for (_, continuation) in writeWaiters {
+            continuation.resume(returning: false)
+        }
+        writeWaiters.removeAll()
     }
 
     func clearLog() {
@@ -152,7 +186,7 @@ final class Z21Client: ObservableObject, CVBackend {
     }
 
     private func send(_ data: Data, note: String? = nil) {
-        guard let conn = connection else {
+        guard let transport else {
             appendLog("Not connected; cannot send.")
             return
         }
@@ -160,67 +194,41 @@ final class Z21Client: ObservableObject, CVBackend {
         if let note { appendLog("→ \(note)") }
         appendLog("  bytes: \(data.hexString)")
 
-        conn.send(content: data, completion: .contentProcessed { [weak self] error in
-            Task { @MainActor in
-                if let error { self?.appendLog("Send error: \(error)") }
-            }
-        })
-    }
-
-    private func beginReceiveLoop() {
-        guard let conn = connection else { return }
-
-        conn.receiveMessage { [weak self] content, _, _, error in
-            Task { @MainActor in
-                if let error {
-                    self?.appendLog("Receive error: \(error)")
-                } else if let content, !content.isEmpty {
-                    self?.appendLog("← RX bytes: \(content.hexString)")
-
-                    let zEvent = Z21Protocol.parseInbound(content)
-
-                    switch zEvent {
-                        case .cvResult(let cv0, let value):
-                            // convert 0-based cv -> 1-based for UI
-                            let cv1 = UInt8(cv0) + 1
-                            self?.eventsSubject.send(.cvReadResult(cv: cv1, value: value))
-                            if let cont = self?.waiters.removeValue(forKey: cv1) {
-                                cont.resume(returning: value)
-                            }
-                            // If writing CV desarm waiter
-                            if let w = self?.writeWaiters.removeValue(forKey: cv1) {
-                                w.resume(returning: true)
-                            }
-
-                        case .cvNack:
-                            self?.eventsSubject.send(.failure("CV read/write NACK"))
-
-                        case .unknown:
-                            break
-                    }
-
-
-                    self?.appendLog("  event: \(zEvent.description)")
-                }
-                self?.beginReceiveLoop()
+        Task { [weak self] in
+            do {
+                try await transport.send(data)
+            } catch {
+                self?.appendLog("Send error: \(error.localizedDescription)")
             }
         }
     }
 
-    private func handleState(_ state: NWConnection.State) {
-        switch state {
-            case .ready:
-                appendLog("UDP ready.")
-            case .failed(let err):
-                appendLog("Connection failed: \(err)")
-                disconnect()
-            case .waiting(let err):
-                appendLog("Connection waiting: \(err)")
-            case .cancelled:
-                appendLog("Connection cancelled.")
-            default:
+    private func handleInboundPacket(_ content: Data) {
+        appendLog("← RX bytes: \(content.hexString)")
+
+        let zEvent = Z21Protocol.parseInbound(content)
+
+        switch zEvent {
+            case .cvResult(let cv0, let value):
+                // convert 0-based cv -> 1-based for UI
+                let cv1 = UInt8(cv0) + 1
+                eventsSubject.send(.cvReadResult(cv: cv1, value: value))
+                if let continuation = waiters.removeValue(forKey: cv1) {
+                    continuation.resume(returning: value)
+                }
+                // If writing CV desarm waiter
+                if let continuation = writeWaiters.removeValue(forKey: cv1) {
+                    continuation.resume(returning: true)
+                }
+
+            case .cvNack:
+                eventsSubject.send(.failure("CV read/write NACK"))
+
+            case .unknown:
                 break
         }
+
+        appendLog("  event: \(zEvent.description)")
     }
 
     func appendLog(_ line: String) {
