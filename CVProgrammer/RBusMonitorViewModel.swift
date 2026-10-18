@@ -20,6 +20,7 @@ struct RBusMonitorRowModel: Identifiable, Equatable {
 @MainActor
 final class RBusMonitorViewModel: ObservableObject {
     @Published private(set) var rows: [RBusMonitorRowModel] = []
+    @Published private(set) var groups: [RBusGroupState] = []
     @Published private(set) var connectionState: Z21ConnectionState = .disconnected
     @Published private(set) var errorMessage: String?
     @Published private(set) var isRefreshing = false
@@ -81,6 +82,7 @@ final class RBusMonitorViewModel: ObservableObject {
     }
 
     private func apply(_ groups: [RBusGroupState]) {
+        self.groups = groups
         rows = groups
             .sorted { $0.address < $1.address }
             .map { group in

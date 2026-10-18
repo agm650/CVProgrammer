@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RBusMonitorView: View {
     @StateObject private var model: RBusMonitorViewModel
+    @State private var isShowingRoco10819 = false
 
     init(service: any RBusServicing) {
         _model = StateObject(
@@ -11,7 +12,10 @@ struct RBusMonitorView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            RBusMonitorHeaderView(model: model)
+            RBusMonitorHeaderView(
+                model: model,
+                showRoco10819: { isShowingRoco10819 = true }
+            )
             RBusMonitorLegendView()
 
             if let errorMessage = model.errorMessage {
@@ -31,6 +35,9 @@ struct RBusMonitorView: View {
         }
         .padding()
         .frame(minWidth: 760, minHeight: 560)
+        .sheet(isPresented: $isShowingRoco10819) {
+            Roco10819MonitorView(groups: model.groups)
+        }
         .task { await model.start() }
         .onDisappear { model.stop() }
         .accessibilityIdentifier("rbus.monitor")
@@ -39,6 +46,7 @@ struct RBusMonitorView: View {
 
 private struct RBusMonitorHeaderView: View {
     @ObservedObject var model: RBusMonitorViewModel
+    let showRoco10819: () -> Void
 
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
@@ -60,6 +68,9 @@ private struct RBusMonitorHeaderView: View {
             }
 
             Spacer()
+
+            Button("Roco 10819…", action: showRoco10819)
+                .accessibilityIdentifier("roco10819.open")
 
             Button {
                 Task { await model.refresh() }
