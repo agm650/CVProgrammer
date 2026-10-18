@@ -4,11 +4,13 @@ enum Z21Command: Equatable, Sendable {
     case pomReadByte(locomotiveAddress: UInt16, cvAddress: UInt16)
     case pomWriteByte(locomotiveAddress: UInt16, cvAddress: UInt16, value: UInt8)
     case setBroadcastFlags(UInt32)
+    case rBusGetData(groupIndex: UInt8)
 }
 
 enum Z21Message: Equatable, Sendable {
     case cvResult(cvAddress: UInt16, value: UInt8)
     case cvNack
+    case rBusDataChanged(groupIndex: UInt8, groups: [RBusGroupSnapshot])
     case unknown(header: UInt16, payload: Data)
 }
 
@@ -20,6 +22,7 @@ enum Z21ProtocolCodecError: Error, Equatable, LocalizedError, Sendable {
     case invalidChecksum
     case invalidLocomotiveAddress(UInt16)
     case invalidCVAddress(UInt16)
+    case invalidRBusGroupIndex(UInt8)
 
     var errorDescription: String? {
         switch self {
@@ -37,6 +40,8 @@ enum Z21ProtocolCodecError: Error, Equatable, LocalizedError, Sendable {
                 return "Invalid locomotive address: \(address)."
             case .invalidCVAddress(let address):
                 return "Invalid zero-based CV address: \(address)."
+            case .invalidRBusGroupIndex(let groupIndex):
+                return "Invalid R-BUS group index: \(groupIndex)."
         }
     }
 }
@@ -75,6 +80,11 @@ struct DefaultZ21ProtocolCodec: Z21ProtocolCodec {
                     UInt8((flags >> 16) & 0xFF),
                     UInt8((flags >> 24) & 0xFF)
                 ])
+            case .rBusGetData(let groupIndex):
+                guard groupIndex <= 1 else {
+                    throw Z21ProtocolCodecError.invalidRBusGroupIndex(groupIndex)
+                }
+                return Data([0x05, 0x00, 0x81, 0x00, groupIndex])
         }
     }
 
@@ -96,10 +106,17 @@ struct DefaultZ21ProtocolCodec: Z21ProtocolCodec {
         }
 
         let header = UInt16(bytes[2]) | (UInt16(bytes[3]) << 8)
-        guard header == Self.xBusHeader else {
-            throw Z21ProtocolCodecError.unsupportedHeader(header)
+        switch header {
+            case Self.xBusHeader:
+                return try decodeXBus(bytes)
+            case 0x0080:
+                return try decodeRBusDataChanged(bytes)
+            default:
+                throw Z21ProtocolCodecError.unsupportedHeader(header)
         }
+    }
 
+    private func decodeXBus(_ bytes: [UInt8]) throws -> Z21Message {
         guard bytes.count >= 7 else {
             throw Z21ProtocolCodecError.packetTooShort(
                 minimum: 7,
@@ -141,8 +158,37 @@ struct DefaultZ21ProtocolCodec: Z21ProtocolCodec {
         }
 
         return .unknown(
-            header: header,
+            header: Self.xBusHeader,
             payload: Data(bytes.dropFirst(4).dropLast())
+        )
+    }
+
+    private func decodeRBusDataChanged(
+        _ bytes: [UInt8]
+    ) throws -> Z21Message {
+        let expectedPayloadLength = 11
+        guard bytes.count == 4 + expectedPayloadLength else {
+            throw Z21ProtocolCodecError.invalidPayloadLength(
+                expected: expectedPayloadLength,
+                actual: bytes.count - 4
+            )
+        }
+
+        let groupIndex = bytes[4]
+        guard groupIndex <= 1 else {
+            throw Z21ProtocolCodecError.invalidRBusGroupIndex(groupIndex)
+        }
+
+        let firstAddress = groupIndex * 10 + 1
+        let groups = (0..<10).map { offset in
+            RBusGroupSnapshot(
+                address: firstAddress + UInt8(offset),
+                statusByte: bytes[5 + offset]
+            )
+        }
+        return .rBusDataChanged(
+            groupIndex: groupIndex,
+            groups: groups
         )
     }
 

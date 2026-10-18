@@ -257,6 +257,9 @@ final class Z21Client: ObservableObject, CVBackend {
                 eventsSubject.send(.failure("CV read/write NACK"))
                 appendLog("  event: CV_NACK")
 
+            case .rBusDataChanged(let groupIndex, _):
+                appendLog("  event: R-BUS group \(groupIndex)")
+
             case .unknown(let header, _):
                 appendLog(String(format: "  event: UNKNOWN header=0x%04X", header))
         }
