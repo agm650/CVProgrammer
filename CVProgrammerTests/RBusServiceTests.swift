@@ -12,7 +12,11 @@ struct RBusServiceTests {
 
         #expect(groups.count == 20)
         #expect(groups.flatMap(\.inputs).count == 160)
-        #expect(groups.allSatisfy { $0.inputs == Array(repeating: .unknown, count: 8) })
+        #expect(
+            groups.flatMap(\.inputs).allSatisfy {
+                $0.state == .unknown && !$0.isStale
+            }
+        )
         #expect(groups.allSatisfy { $0.lastUpdate == nil })
     }
 
@@ -44,10 +48,10 @@ struct RBusServiceTests {
         )
         let groups = await update.value
 
-        #expect(groups?[0].inputs[0] == .occupied)
-        #expect(groups?[0].inputs[1] == .free)
-        #expect(groups?[9].inputs.allSatisfy { $0 != .unknown } == true)
-        #expect(groups?[10].inputs == Array(repeating: .unknown, count: 8))
+        #expect(groups?[0].inputs[0].state == .occupied)
+        #expect(groups?[0].inputs[1].state == .free)
+        #expect(groups?[9].inputs.allSatisfy { $0.state != .unknown } == true)
+        #expect(groups?[10].inputs.allSatisfy { $0.state == .unknown } == true)
         #expect(groups?[0].lastUpdate == fixedDate)
         #expect(groups?[9].lastUpdate == fixedDate)
         #expect(groups?[10].lastUpdate == nil)
@@ -67,9 +71,9 @@ struct RBusServiceTests {
         )
         let groups = await update.value
 
-        #expect(groups?[0].inputs == Array(repeating: .unknown, count: 8))
-        #expect(groups?[10].inputs == Array(repeating: .free, count: 8))
-        #expect(groups?[19].inputs[7] == .occupied)
+        #expect(groups?[0].inputs.allSatisfy { $0.state == .unknown } == true)
+        #expect(groups?[10].inputs.allSatisfy { $0.state == .free } == true)
+        #expect(groups?[19].inputs[7].state == .occupied)
         #expect(groups?[9].lastUpdate == nil)
         #expect(groups?[10].lastUpdate == fixedDate)
         #expect(groups?[19].lastUpdate == fixedDate)
@@ -96,10 +100,10 @@ struct RBusServiceTests {
         let receivedUpdates = await updates.value
 
         #expect(receivedUpdates.count == 3)
-        #expect(receivedUpdates[1][0].inputs[0] == .occupied)
-        #expect(receivedUpdates[1][0].inputs[7] == .free)
-        #expect(receivedUpdates[2][0].inputs[0] == .free)
-        #expect(receivedUpdates[2][0].inputs[7] == .occupied)
+        #expect(receivedUpdates[1][0].inputs[0].state == .occupied)
+        #expect(receivedUpdates[1][0].inputs[7].state == .free)
+        #expect(receivedUpdates[2][0].inputs[0].state == .free)
+        #expect(receivedUpdates[2][0].inputs[7].state == .occupied)
     }
 
     private func makeService() async throws -> (

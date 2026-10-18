@@ -194,7 +194,8 @@ final class Z21Client: ObservableObject, CVBackend {
 
     private func observeSession() {
         stateTask = Task { [weak self, session] in
-            for await state in session.connectionStates {
+            let states = await session.connectionStateStream()
+            for await state in states {
                 guard !Task.isCancelled else { return }
                 self?.handleConnectionState(state)
             }

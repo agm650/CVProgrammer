@@ -10,6 +10,8 @@ actor FakeZ21Transport: Z21Transport {
     private var connectionAttempts: [(host: String, port: UInt16)] = []
     private var nextConnectError: Z21TransportError?
     private var nextSendError: Z21TransportError?
+    private var connectionDelayNanoseconds: UInt64 = 0
+    private var finishStreamWhenClosed = true
     private var closed = false
 
     init() {
@@ -20,6 +22,14 @@ actor FakeZ21Transport: Z21Transport {
 
     func connect(host: String, port: UInt16) async throws {
         connectionAttempts.append((host, port))
+        let delay = connectionDelayNanoseconds
+        connectionDelayNanoseconds = 0
+        if delay > 0 {
+            try await Task.sleep(nanoseconds: delay)
+        }
+        guard !closed else {
+            throw Z21TransportError.notConnected
+        }
         if let nextConnectError {
             self.nextConnectError = nil
             throw nextConnectError
@@ -42,11 +52,25 @@ actor FakeZ21Transport: Z21Transport {
         guard !closed else { return }
 
         closed = true
-        packetContinuation.finish()
+        if finishStreamWhenClosed {
+            packetContinuation.finish()
+        }
     }
 
     func inject(_ data: Data) {
         guard !closed else { return }
+        packetContinuation.yield(data)
+    }
+
+    func delayNextConnection(by nanoseconds: UInt64) {
+        connectionDelayNanoseconds = nanoseconds
+    }
+
+    func keepStreamOpenWhenClosed() {
+        finishStreamWhenClosed = false
+    }
+
+    func injectLatePacket(_ data: Data) {
         packetContinuation.yield(data)
     }
 

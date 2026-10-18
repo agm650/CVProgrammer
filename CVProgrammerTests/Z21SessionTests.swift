@@ -24,7 +24,8 @@ struct Z21SessionTests {
     func publishesConnectingThenSynchronized() async throws {
         let transport = FakeZ21Transport()
         let session = makeSession(transports: [transport])
-        let states = collectStates(from: session.connectionStates, count: 3)
+        let stateStream = await session.connectionStateStream()
+        let states = collectStates(from: stateStream, count: 3)
 
         try await session.connect(host: "192.168.0.111", port: 21_105)
 
@@ -45,7 +46,8 @@ struct Z21SessionTests {
             with: .connectionFailed("Test failure")
         )
         let session = makeSession(transports: [transport])
-        let states = collectStates(from: session.connectionStates, count: 3)
+        let stateStream = await session.connectionStateStream()
+        let states = collectStates(from: stateStream, count: 3)
 
         do {
             try await session.connect(host: "invalid", port: 21_105)

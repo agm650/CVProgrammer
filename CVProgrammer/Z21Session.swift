@@ -33,10 +33,8 @@ enum Z21SessionError: Error, Equatable, LocalizedError, Sendable {
 actor Z21Session {
     typealias TransportFactory = @Sendable () -> any Z21Transport
 
-    nonisolated let connectionStates: AsyncStream<Z21ConnectionState>
-
-    private let connectionStateContinuation:
-        AsyncStream<Z21ConnectionState>.Continuation
+    private var connectionStateContinuations:
+        [UUID: AsyncStream<Z21ConnectionState>.Continuation] = [:]
     private var messageContinuations:
         [UUID: AsyncStream<Z21Message>.Continuation] = [:]
     private let transportFactory: TransportFactory
@@ -55,14 +53,8 @@ actor Z21Session {
         },
         codec: any Z21ProtocolCodec = DefaultZ21ProtocolCodec()
     ) {
-        let stateStream = AsyncStream<Z21ConnectionState>.makeStream()
-        connectionStates = stateStream.stream
-        connectionStateContinuation = stateStream.continuation
-
         self.transportFactory = transportFactory
         self.codec = codec
-
-        connectionStateContinuation.yield(.disconnected)
     }
 
     func connect(host: String, port: UInt16) async throws {
@@ -90,10 +82,10 @@ actor Z21Session {
                 return
             }
 
-            publishConnectionState(.synchronized)
             if !broadcastFlags.isEmpty {
                 try await sendBroadcastFlags(using: newTransport)
             }
+            publishConnectionState(.synchronized)
         } catch {
             guard connectionGeneration == generation else { throw error }
 
@@ -143,6 +135,19 @@ actor Z21Session {
         broadcastFlags
     }
 
+    func connectionStateStream() -> AsyncStream<Z21ConnectionState> {
+        let identifier = UUID()
+        let stream = AsyncStream<Z21ConnectionState>.makeStream()
+        connectionStateContinuations[identifier] = stream.continuation
+        stream.continuation.yield(connectionState)
+        stream.continuation.onTermination = { [weak self] _ in
+            Task {
+                await self?.removeConnectionStateContinuation(identifier)
+            }
+        }
+        return stream.stream
+    }
+
     func messageStream() -> AsyncStream<Z21Message> {
         let identifier = UUID()
         let stream = AsyncStream<Z21Message>.makeStream()
@@ -171,6 +176,10 @@ actor Z21Session {
             // Protocol diagnostics are added in ticket 013. Malformed or unsupported
             // packets must not terminate the session or reach message consumers.
         }
+    }
+
+    private func removeConnectionStateContinuation(_ identifier: UUID) {
+        connectionStateContinuations.removeValue(forKey: identifier)
     }
 
     private func removeMessageContinuation(_ identifier: UUID) {
@@ -216,6 +225,8 @@ actor Z21Session {
         guard connectionState != newState else { return }
 
         connectionState = newState
-        connectionStateContinuation.yield(newState)
+        for continuation in connectionStateContinuations.values {
+            continuation.yield(newState)
+        }
     }
 }

@@ -18,6 +18,8 @@ actor RBusService: RBusServicing {
 
     private var groupStates: [RBusGroupState]
     private var messageTask: Task<Void, Never>?
+    private var connectionStateTask: Task<Void, Never>?
+    private var lastConnectionState: Z21ConnectionState = .disconnected
 
     init(
         session: Z21Session,
@@ -39,19 +41,32 @@ actor RBusService: RBusServicing {
         guard messageTask == nil else { return }
 
         let messages = await session.messageStream()
+        let connectionStates = await session.connectionStateStream()
+        lastConnectionState = await session.currentConnectionState()
+
         messageTask = Task { [weak self] in
             for await message in messages {
                 guard !Task.isCancelled else { return }
                 await self?.process(message)
             }
         }
+        connectionStateTask = Task { [weak self] in
+            for await state in connectionStates {
+                guard !Task.isCancelled else { return }
+                await self?.processConnectionState(state)
+            }
+        }
 
         do {
             _ = try await session.enableBroadcastFlags(.rBus)
-            try await refresh()
+            if lastConnectionState == .synchronized {
+                try await refresh()
+            }
         } catch {
             messageTask?.cancel()
             messageTask = nil
+            connectionStateTask?.cancel()
+            connectionStateTask = nil
             throw error
         }
     }
@@ -64,6 +79,8 @@ actor RBusService: RBusServicing {
     func stop() {
         messageTask?.cancel()
         messageTask = nil
+        connectionStateTask?.cancel()
+        connectionStateTask = nil
     }
 
     func currentGroups() -> [RBusGroupState] {
@@ -80,8 +97,33 @@ actor RBusService: RBusServicing {
             let stateIndex = Int(snapshot.address) - 1
             guard groupStates.indices.contains(stateIndex) else { continue }
 
-            groupStates[stateIndex].inputs = snapshot.inputs.map(\.state)
+            groupStates[stateIndex].inputs = snapshot.inputs.map {
+                FeedbackValue(state: $0.state, isStale: false)
+            }
             groupStates[stateIndex].lastUpdate = updateDate
+        }
+        groupsContinuation.yield(groupStates)
+    }
+
+    private func processConnectionState(
+        _ newState: Z21ConnectionState
+    ) async {
+        guard newState != lastConnectionState else { return }
+
+        lastConnectionState = newState
+        switch newState {
+            case .disconnected, .connecting, .degraded:
+                markAllInputsStale()
+            case .synchronized:
+                try? await refresh()
+        }
+    }
+
+    private func markAllInputsStale() {
+        for groupIndex in groupStates.indices {
+            for inputIndex in groupStates[groupIndex].inputs.indices {
+                groupStates[groupIndex].inputs[inputIndex].isStale = true
+            }
         }
         groupsContinuation.yield(groupStates)
     }
