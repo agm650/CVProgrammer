@@ -90,7 +90,7 @@ struct DeviceProfileTests {
             address: LocomotiveAddress(rawValue: 3)
         )
         let accessory = ProgrammingTarget.accessory(
-            address: AccessoryAddress(rawValue: 3)
+            address: try AccessoryAddress(3)
         )
         let profile = ProgrammingTarget.deviceProfile(try makeProfile())
 

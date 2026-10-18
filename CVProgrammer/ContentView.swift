@@ -41,6 +41,9 @@ struct ContentView: View {
     @State private var locoAddress: UInt16 = 3
     @State private var cvNumber1Based: UInt8 = 1
     @State private var cvValue: UInt8 = 3
+    @State private var accessoryAddress: UInt16 = 1
+    @State private var accessoryCV: UInt16 = 1
+    @State private var accessoryValue: UInt8 = 0
     // Max CV to parse
     @AppStorage(PreferencesKeys.maxCvValue) private var maxCvValueStored: Int = 255
     private var maxCvValue: UInt8 {
@@ -127,6 +130,55 @@ struct ContentView: View {
                                 isShowingRBusMonitor = true
                             }
                             .accessibilityIdentifier("rbus.open")
+                        }
+                    }
+                }
+
+                if type == .z21 {
+                    GroupBox("Accessory Decoder POM") {
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack {
+                                TextField(
+                                    "Address (1–512)",
+                                    value: $accessoryAddress,
+                                    format: .number
+                                )
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 150)
+
+                                TextField(
+                                    "CV (1–1024)",
+                                    value: $accessoryCV,
+                                    format: .number
+                                )
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 150)
+
+                                TextField(
+                                    "Value (0–255)",
+                                    value: $accessoryValue,
+                                    format: .number
+                                )
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 150)
+
+                                Button("Write Accessory CV") {
+                                    z21.writeAccessoryCV(
+                                        address: accessoryAddress,
+                                        cv: accessoryCV,
+                                        value: accessoryValue
+                                    )
+                                }
+                                .disabled(
+                                    !z21.isRunning
+                                    || !(1...512).contains(accessoryAddress)
+                                    || !(1...1_024).contains(accessoryCV)
+                                )
+                            }
+
+                            Text("Accessory POM writes do not provide confirmation. Reading is not offered because it requires RailCom support from both the Z21 and the accessory decoder.")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
                         }
                     }
                 }

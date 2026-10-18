@@ -115,6 +115,28 @@ final class Z21Client: ObservableObject, CVBackend {
         )
     }
 
+    func writeAccessoryCV(
+        address: UInt16,
+        cv: UInt16,
+        value: UInt8
+    ) {
+        do {
+            let accessoryAddress = try AccessoryAddress(address)
+            guard (1...1_024).contains(cv) else {
+                throw Z21ProtocolCodecError.invalidCVAddress(cv)
+            }
+            send(
+                .pomAccessoryWriteByte(
+                    accessoryAddress: accessoryAddress.zeroBasedValue,
+                    cvAddress: cv - 1,
+                    value: value
+                )
+            )
+        } catch {
+            eventsSubject.send(.failure(error.localizedDescription))
+        }
+    }
+
     func readCVAsync(locoAddress: UInt16, cv: UInt8, timeoutMs: Int = 800) async -> UInt8? {
         guard cv >= 1 else { return nil }
         let cv1 = cv

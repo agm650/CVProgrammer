@@ -3,6 +3,7 @@ import Foundation
 enum Z21Command: Equatable, Sendable {
     case pomReadByte(locomotiveAddress: UInt16, cvAddress: UInt16)
     case pomWriteByte(locomotiveAddress: UInt16, cvAddress: UInt16, value: UInt8)
+    case pomAccessoryWriteByte(accessoryAddress: UInt16, cvAddress: UInt16, value: UInt8)
     case setBroadcastFlags(UInt32)
     case rBusGetData(groupIndex: UInt8)
 }
@@ -21,6 +22,7 @@ enum Z21ProtocolCodecError: Error, Equatable, LocalizedError, Sendable {
     case invalidPayloadLength(expected: Int, actual: Int)
     case invalidChecksum
     case invalidLocomotiveAddress(UInt16)
+    case invalidAccessoryAddress(UInt16)
     case invalidCVAddress(UInt16)
     case invalidRBusGroupIndex(UInt8)
 
@@ -38,6 +40,8 @@ enum Z21ProtocolCodecError: Error, Equatable, LocalizedError, Sendable {
                 return "Invalid Z21 X-BUS checksum."
             case .invalidLocomotiveAddress(let address):
                 return "Invalid locomotive address: \(address)."
+            case .invalidAccessoryAddress(let address):
+                return "Invalid zero-based accessory decoder address: \(address)."
             case .invalidCVAddress(let address):
                 return "Invalid zero-based CV address: \(address)."
             case .invalidRBusGroupIndex(let groupIndex):
@@ -70,6 +74,16 @@ struct DefaultZ21ProtocolCodec: Z21ProtocolCodec {
                     locomotiveAddress: locomotiveAddress,
                     cvAddress: cvAddress,
                     optionBase: 0xEC,
+                    value: value
+                )
+            case .pomAccessoryWriteByte(
+                let accessoryAddress,
+                let cvAddress,
+                let value
+            ):
+                return try encodeAccessoryPOM(
+                    accessoryAddress: accessoryAddress,
+                    cvAddress: cvAddress,
                     value: value
                 )
             case .setBroadcastFlags(let flags):
@@ -231,5 +245,39 @@ struct DefaultZ21ProtocolCodec: Z21ProtocolCodec {
         ])
         packet.append(contentsOf: xBusPayload)
         return packet
+    }
+
+    private func encodeAccessoryPOM(
+        accessoryAddress: UInt16,
+        cvAddress: UInt16,
+        value: UInt8
+    ) throws -> Data {
+        guard accessoryAddress <= 0x01FF else {
+            throw Z21ProtocolCodecError.invalidAccessoryAddress(
+                accessoryAddress
+            )
+        }
+        guard cvAddress <= Self.maximumCVAddress else {
+            throw Z21ProtocolCodecError.invalidCVAddress(cvAddress)
+        }
+
+        let addressAndOutput = (accessoryAddress & 0x01FF) << 4
+        let cvMSB = UInt8((cvAddress >> 8) & 0x03)
+        var xBusPayload: [UInt8] = [
+            0xE6,
+            0x31,
+            UInt8((addressAndOutput >> 8) & 0xFF),
+            UInt8(addressAndOutput & 0xFF),
+            0xEC | cvMSB,
+            UInt8(cvAddress & 0xFF),
+            value
+        ]
+        xBusPayload.append(xBusPayload.reduce(0, ^))
+
+        return Data([
+            0x0C, 0x00,
+            UInt8(Self.xBusHeader & 0xFF),
+            UInt8((Self.xBusHeader >> 8) & 0xFF)
+        ] + xBusPayload)
     }
 }

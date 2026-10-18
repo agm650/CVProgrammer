@@ -28,6 +28,7 @@
 		C7046EE43085716E00E21A82 /* Roco10819Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7046EE33085716E00E21A82 /* Roco10819Tests.swift */; };
 		C7046EE6308571C700E21A82 /* DeviceProgrammingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7046EE5308571C700E21A82 /* DeviceProgrammingService.swift */; };
 		C7046EE8308571F300E21A82 /* Roco10819ProgrammingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7046EE7308571F300E21A82 /* Roco10819ProgrammingTests.swift */; };
+		C7046EEA3085725200E21A82 /* Z21AccessoryPOMTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7046EE93085725200E21A82 /* Z21AccessoryPOMTests.swift */; };
 		C7A03EBE2EF8B87900D82C66 /* CVProgrammerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7A03EBD2EF8B87900D82C66 /* CVProgrammerApp.swift */; };
 		C7A03EC02EF8B87900D82C66 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7A03EBF2EF8B87900D82C66 /* ContentView.swift */; };
 		C7A03EC22EF8B88000D82C66 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C7A03EC12EF8B88000D82C66 /* Assets.xcassets */; };
@@ -87,6 +88,7 @@
 		C7046EE33085716E00E21A82 /* Roco10819Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Roco10819Tests.swift; sourceTree = "<group>"; };
 		C7046EE5308571C700E21A82 /* DeviceProgrammingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceProgrammingService.swift; sourceTree = "<group>"; };
 		C7046EE7308571F300E21A82 /* Roco10819ProgrammingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Roco10819ProgrammingTests.swift; sourceTree = "<group>"; };
+		C7046EE93085725200E21A82 /* Z21AccessoryPOMTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Z21AccessoryPOMTests.swift; sourceTree = "<group>"; };
 		C7A03EBA2EF8B87900D82C66 /* CVProgrammer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CVProgrammer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C7A03EBD2EF8B87900D82C66 /* CVProgrammerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CVProgrammerApp.swift; sourceTree = "<group>"; };
 		C7A03EBF2EF8B87900D82C66 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; wrapsLines = 0; };
@@ -212,6 +214,7 @@
 				C7046EDD3085711E00E21A82 /* DeviceProfileTests.swift */,
 				C7046EE33085716E00E21A82 /* Roco10819Tests.swift */,
 				C7046EE7308571F300E21A82 /* Roco10819ProgrammingTests.swift */,
+				C7046EE93085725200E21A82 /* Z21AccessoryPOMTests.swift */,
 			);
 			path = CVProgrammerTests;
 			sourceTree = "<group>";
@@ -391,6 +394,7 @@
 				C7046EC830856E3200E21A82 /* Z21SessionTests.swift in Sources */,
 				C7046EC430856D9800E21A82 /* Z21ProtocolCodecTests.swift in Sources */,
 				C7046ED230856F6F00E21A82 /* RBusReconnectionTests.swift in Sources */,
+				C7046EEA3085725200E21A82 /* Z21AccessoryPOMTests.swift in Sources */,
 				C7A03ED02EF8B88000D82C66 /* CVProgrammerTests.swift in Sources */,
 				C7046ED83085701700E21A82 /* RBusMonitorViewModelTests.swift in Sources */,
 				C7046EC230856D0D00E21A82 /* Z21TransportTests.swift in Sources */,

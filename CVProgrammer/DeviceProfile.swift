@@ -8,11 +8,39 @@ struct LocomotiveAddress: RawRepresentable, Codable, Hashable, Sendable {
     }
 }
 
-struct AccessoryAddress: RawRepresentable, Codable, Hashable, Sendable {
-    let rawValue: UInt16
+enum ProgrammingAddressError: Error, Equatable, LocalizedError, Sendable {
+    case invalidAccessoryAddress(UInt16)
 
-    init(rawValue: UInt16) {
-        self.rawValue = rawValue
+    var errorDescription: String? {
+        switch self {
+            case .invalidAccessoryAddress(let address):
+                return "Accessory decoder address \(address) is outside the supported range 1...512."
+        }
+    }
+}
+
+struct AccessoryAddress: Codable, Hashable, Sendable {
+    let value: UInt16
+
+    init(_ value: UInt16) throws {
+        guard (1...512).contains(value) else {
+            throw ProgrammingAddressError.invalidAccessoryAddress(value)
+        }
+        self.value = value
+    }
+
+    var zeroBasedValue: UInt16 {
+        value - 1
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        try self.init(container.decode(UInt16.self))
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(value)
     }
 }
 
