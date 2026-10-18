@@ -22,12 +22,25 @@ final class CVProgrammerUITests: XCTestCase {
         // Put teardown code here. This method is called after the invocation of each test method in the class.
     }
 
-    func testExample() throws {
-        // UI tests must launch the application that they test.
+    func testRBusMonitorShowsStatesAndLiveChanges() throws {
         let app = XCUIApplication()
+        app.launchArguments.append("--rbus-ui-testing")
         app.launch()
 
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
+        XCTAssertTrue(app.otherElements["rbus.monitor"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["Disconnected"].exists)
+
+        let occupiedInput = app.descendants(matching: .any)["rbus.1.1"]
+        let freeInput = app.descendants(matching: .any)["rbus.1.2"]
+        let unknownInput = app.descendants(matching: .any)["rbus.1.3"]
+        XCTAssertTrue(occupiedInput.waitForExistence(timeout: 2))
+        XCTAssertTrue(occupiedInput.label.contains("Occupied"))
+        XCTAssertTrue(freeInput.label.contains("Free"))
+        XCTAssertTrue(unknownInput.label.contains("Unknown"))
+
+        let changedToFree = NSPredicate(format: "label CONTAINS %@", "Free")
+        expectation(for: changedToFree, evaluatedWith: occupiedInput)
+        waitForExpectations(timeout: 5)
     }
 
     func testLaunchPerformance() throws {

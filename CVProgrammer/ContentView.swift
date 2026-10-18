@@ -27,6 +27,7 @@ struct ContentView: View {
     @AppStorage(PreferencesKeys.preferredProtocol)
     private var preferredProtocolRaw: String = CommandStationType.z21.rawValue
     @State private var type: CommandStationType = .z21
+    @State private var isShowingRBusMonitor = false
 
     @AppStorage(PreferencesKeys.remoteIP) private var remoteIPStored: String = "192.168.0.111"
     private var host: String {
@@ -118,6 +119,15 @@ struct ContentView: View {
                             .frame(width: 10, height: 10)
                         Text(client.isRunning ? "Ready" : "Not connected")
                             .foregroundStyle(.secondary)
+
+                        Spacer()
+
+                        if type == .z21 {
+                            Button("R-BUS Monitor…") {
+                                isShowingRBusMonitor = true
+                            }
+                            .accessibilityIdentifier("rbus.open")
+                        }
                     }
                 }
 
@@ -405,6 +415,9 @@ struct ContentView: View {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text(importError ?? "")
+            }
+            .sheet(isPresented: $isShowingRBusMonitor) {
+                RBusMonitorView(service: z21.rBusService)
             }
             .fileExporter(
                 isPresented: $isExporting,

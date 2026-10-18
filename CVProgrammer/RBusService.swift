@@ -2,6 +2,7 @@ import Foundation
 
 protocol RBusServicing: Sendable {
     var groups: AsyncStream<[RBusGroupState]> { get }
+    var connectionStates: AsyncStream<Z21ConnectionState> { get }
 
     func start() async throws
     func refresh() async throws
@@ -10,9 +11,12 @@ protocol RBusServicing: Sendable {
 
 actor RBusService: RBusServicing {
     nonisolated let groups: AsyncStream<[RBusGroupState]>
+    nonisolated let connectionStates: AsyncStream<Z21ConnectionState>
 
     private let groupsContinuation:
         AsyncStream<[RBusGroupState]>.Continuation
+    private let connectionStatesContinuation:
+        AsyncStream<Z21ConnectionState>.Continuation
     private let session: Z21Session
     private let now: @Sendable () -> Date
 
@@ -35,6 +39,11 @@ actor RBusService: RBusServicing {
         groups = stream.stream
         groupsContinuation = stream.continuation
         groupsContinuation.yield(groupStates)
+
+        let stateStream = AsyncStream<Z21ConnectionState>.makeStream()
+        connectionStates = stateStream.stream
+        connectionStatesContinuation = stateStream.continuation
+        connectionStatesContinuation.yield(.disconnected)
     }
 
     func start() async throws {
@@ -43,6 +52,7 @@ actor RBusService: RBusServicing {
         let messages = await session.messageStream()
         let connectionStates = await session.connectionStateStream()
         lastConnectionState = await session.currentConnectionState()
+        connectionStatesContinuation.yield(lastConnectionState)
 
         messageTask = Task { [weak self] in
             for await message in messages {
@@ -111,6 +121,7 @@ actor RBusService: RBusServicing {
         guard newState != lastConnectionState else { return }
 
         lastConnectionState = newState
+        connectionStatesContinuation.yield(newState)
         switch newState {
             case .disconnected, .connecting, .degraded:
                 markAllInputsStale()
