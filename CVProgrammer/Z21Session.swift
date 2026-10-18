@@ -34,11 +34,11 @@ actor Z21Session {
     typealias TransportFactory = @Sendable () -> any Z21Transport
 
     nonisolated let connectionStates: AsyncStream<Z21ConnectionState>
-    nonisolated let messages: AsyncStream<Z21Message>
 
     private let connectionStateContinuation:
         AsyncStream<Z21ConnectionState>.Continuation
-    private let messageContinuation: AsyncStream<Z21Message>.Continuation
+    private var messageContinuations:
+        [UUID: AsyncStream<Z21Message>.Continuation] = [:]
     private let transportFactory: TransportFactory
     private let codec: any Z21ProtocolCodec
 
@@ -58,10 +58,6 @@ actor Z21Session {
         let stateStream = AsyncStream<Z21ConnectionState>.makeStream()
         connectionStates = stateStream.stream
         connectionStateContinuation = stateStream.continuation
-
-        let messageStream = AsyncStream<Z21Message>.makeStream()
-        messages = messageStream.stream
-        messageContinuation = messageStream.continuation
 
         self.transportFactory = transportFactory
         self.codec = codec
@@ -147,6 +143,18 @@ actor Z21Session {
         broadcastFlags
     }
 
+    func messageStream() -> AsyncStream<Z21Message> {
+        let identifier = UUID()
+        let stream = AsyncStream<Z21Message>.makeStream()
+        messageContinuations[identifier] = stream.continuation
+        stream.continuation.onTermination = { [weak self] _ in
+            Task {
+                await self?.removeMessageContinuation(identifier)
+            }
+        }
+        return stream.stream
+    }
+
     func currentConnectionState() -> Z21ConnectionState {
         connectionState
     }
@@ -155,11 +163,18 @@ actor Z21Session {
         guard connectionGeneration == generation else { return }
 
         do {
-            messageContinuation.yield(try codec.decode(packet))
+            let message = try codec.decode(packet)
+            for continuation in messageContinuations.values {
+                continuation.yield(message)
+            }
         } catch {
             // Protocol diagnostics are added in ticket 013. Malformed or unsupported
             // packets must not terminate the session or reach message consumers.
         }
+    }
+
+    private func removeMessageContinuation(_ identifier: UUID) {
+        messageContinuations.removeValue(forKey: identifier)
     }
 
     private func transportStreamEnded(generation: UUID) {

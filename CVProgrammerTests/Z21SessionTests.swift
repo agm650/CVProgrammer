@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import CVProgrammer
 
-private final class FakeZ21TransportFactory: @unchecked Sendable {
+final class FakeZ21TransportFactory: @unchecked Sendable {
     private let lock = NSLock()
     private var transports: [FakeZ21Transport]
 
@@ -105,8 +105,9 @@ struct Z21SessionTests {
     func routesDecodedMessage() async throws {
         let transport = FakeZ21Transport()
         let session = makeSession(transports: [transport])
+        let messages = await session.messageStream()
         let receivedMessage = Task<Z21Message?, Never> {
-            for await message in session.messages {
+            for await message in messages {
                 return message
             }
             return nil

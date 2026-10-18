@@ -6,6 +6,18 @@ enum FeedbackState: Equatable, Sendable {
     case occupied
 }
 
+struct RBusGroupState: Equatable, Sendable {
+    let address: UInt8
+    var inputs: [FeedbackState]
+    var lastUpdate: Date?
+
+    init(address: UInt8) {
+        self.address = address
+        inputs = Array(repeating: .unknown, count: 8)
+        lastUpdate = nil
+    }
+}
+
 struct RBusFeedbackInput: Equatable, Sendable {
     let rBusAddress: UInt8
     let input: UInt8

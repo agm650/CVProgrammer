@@ -19,6 +19,7 @@ final class Z21Client: ObservableObject, CVBackend {
     var cvEvents: AnyPublisher<CVEvent, Never> { eventsSubject.eraseToAnyPublisher() }
 
     private let session: Z21Session
+    let rBusService: RBusService
     private var connectionTask: Task<Void, Never>?
     private var messageTask: Task<Void, Never>?
     private var stateTask: Task<Void, Never>?
@@ -33,10 +34,12 @@ final class Z21Client: ObservableObject, CVBackend {
         },
         protocolCodec: any Z21ProtocolCodec = DefaultZ21ProtocolCodec()
     ) {
-        session = Z21Session(
+        let session = Z21Session(
             transportFactory: transportFactory,
             codec: protocolCodec
         )
+        self.session = session
+        rBusService = RBusService(session: session)
         observeSession()
     }
 
@@ -198,7 +201,8 @@ final class Z21Client: ObservableObject, CVBackend {
         }
 
         messageTask = Task { [weak self, session] in
-            for await message in session.messages {
+            let messages = await session.messageStream()
+            for await message in messages {
                 guard !Task.isCancelled else { return }
                 self?.handleInboundMessage(message)
             }
