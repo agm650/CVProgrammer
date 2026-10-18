@@ -3,6 +3,7 @@ import Foundation
 enum Z21Command: Equatable, Sendable {
     case pomReadByte(locomotiveAddress: UInt16, cvAddress: UInt16)
     case pomWriteByte(locomotiveAddress: UInt16, cvAddress: UInt16, value: UInt8)
+    case setBroadcastFlags(UInt32)
 }
 
 enum Z21Message: Equatable, Sendable {
@@ -66,6 +67,14 @@ struct DefaultZ21ProtocolCodec: Z21ProtocolCodec {
                     optionBase: 0xEC,
                     value: value
                 )
+            case .setBroadcastFlags(let flags):
+                return Data([
+                    0x08, 0x00, 0x50, 0x00,
+                    UInt8(flags & 0xFF),
+                    UInt8((flags >> 8) & 0xFF),
+                    UInt8((flags >> 16) & 0xFF),
+                    UInt8((flags >> 24) & 0xFF)
+                ])
         }
     }
 

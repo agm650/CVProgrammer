@@ -7,6 +7,8 @@ actor FakeZ21Transport: Z21Transport {
 
     private let packetContinuation: AsyncStream<Data>.Continuation
     private var capturedPackets: [Data] = []
+    private var connectionAttempts: [(host: String, port: UInt16)] = []
+    private var nextConnectError: Z21TransportError?
     private var nextSendError: Z21TransportError?
     private var closed = false
 
@@ -17,6 +19,11 @@ actor FakeZ21Transport: Z21Transport {
     }
 
     func connect(host: String, port: UInt16) async throws {
+        connectionAttempts.append((host, port))
+        if let nextConnectError {
+            self.nextConnectError = nil
+            throw nextConnectError
+        }
         closed = false
     }
 
@@ -43,12 +50,20 @@ actor FakeZ21Transport: Z21Transport {
         packetContinuation.yield(data)
     }
 
+    func failNextConnection(with error: Z21TransportError) {
+        nextConnectError = error
+    }
+
     func failNextSend(with error: Z21TransportError) {
         nextSendError = error
     }
 
     func sentPackets() -> [Data] {
         capturedPackets
+    }
+
+    func connectedEndpoints() -> [(host: String, port: UInt16)] {
+        connectionAttempts
     }
 
     func isClosed() -> Bool {

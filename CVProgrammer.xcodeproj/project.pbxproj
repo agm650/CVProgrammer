@@ -10,6 +10,8 @@
 		C7046EC030856CDD00E21A82 /* Z21Transport.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7046EBF30856CDD00E21A82 /* Z21Transport.swift */; };
 		C7046EC230856D0D00E21A82 /* Z21TransportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7046EC130856D0D00E21A82 /* Z21TransportTests.swift */; };
 		C7046EC430856D9800E21A82 /* Z21ProtocolCodecTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7046EC330856D9800E21A82 /* Z21ProtocolCodecTests.swift */; };
+		C7046EC630856DE000E21A82 /* Z21Session.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7046EC530856DE000E21A82 /* Z21Session.swift */; };
+		C7046EC830856E3200E21A82 /* Z21SessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7046EC730856E3200E21A82 /* Z21SessionTests.swift */; };
 		C7A03EBE2EF8B87900D82C66 /* CVProgrammerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7A03EBD2EF8B87900D82C66 /* CVProgrammerApp.swift */; };
 		C7A03EC02EF8B87900D82C66 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7A03EBF2EF8B87900D82C66 /* ContentView.swift */; };
 		C7A03EC22EF8B88000D82C66 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C7A03EC12EF8B88000D82C66 /* Assets.xcassets */; };
@@ -51,6 +53,8 @@
 		C7046EBF30856CDD00E21A82 /* Z21Transport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Z21Transport.swift; sourceTree = "<group>"; };
 		C7046EC130856D0D00E21A82 /* Z21TransportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Z21TransportTests.swift; sourceTree = "<group>"; };
 		C7046EC330856D9800E21A82 /* Z21ProtocolCodecTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Z21ProtocolCodecTests.swift; sourceTree = "<group>"; };
+		C7046EC530856DE000E21A82 /* Z21Session.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Z21Session.swift; sourceTree = "<group>"; };
+		C7046EC730856E3200E21A82 /* Z21SessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Z21SessionTests.swift; sourceTree = "<group>"; };
 		C7A03EBA2EF8B87900D82C66 /* CVProgrammer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CVProgrammer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C7A03EBD2EF8B87900D82C66 /* CVProgrammerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CVProgrammerApp.swift; sourceTree = "<group>"; };
 		C7A03EBF2EF8B87900D82C66 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; wrapsLines = 0; };
@@ -140,6 +144,7 @@
 				C7A03EEE2EF8BDB900D82C66 /* BitEditorView.swift */,
 				C7A837042F12E149000B8C90 /* CommandStation.swift */,
 				C7046EBF30856CDD00E21A82 /* Z21Transport.swift */,
+				C7046EC530856DE000E21A82 /* Z21Session.swift */,
 			);
 			path = CVProgrammer;
 			sourceTree = "<group>";
@@ -158,6 +163,7 @@
 				C7A03ECF2EF8B88000D82C66 /* CVProgrammerTests.swift */,
 				C7046EC130856D0D00E21A82 /* Z21TransportTests.swift */,
 				C7046EC330856D9800E21A82 /* Z21ProtocolCodecTests.swift */,
+				C7046EC730856E3200E21A82 /* Z21SessionTests.swift */,
 			);
 			path = CVProgrammerTests;
 			sourceTree = "<group>";
@@ -306,6 +312,7 @@
 				C7A8370D2F13D6CA000B8C90 /* PreferencesKeys.swift in Sources */,
 				C7A837052F12E149000B8C90 /* CommandStation.swift in Sources */,
 				C7A03EC02EF8B87900D82C66 /* ContentView.swift in Sources */,
+				C7046EC630856DE000E21A82 /* Z21Session.swift in Sources */,
 				C7A03EBE2EF8B87900D82C66 /* CVProgrammerApp.swift in Sources */,
 				C7A03EF52EF8C64B00D82C66 /* CVExport.swift in Sources */,
 				C7A03EF32EF8C05100D82C66 /* CVMetaDataStore.swift in Sources */,
@@ -322,6 +329,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C7046EC830856E3200E21A82 /* Z21SessionTests.swift in Sources */,
 				C7046EC430856D9800E21A82 /* Z21ProtocolCodecTests.swift in Sources */,
 				C7A03ED02EF8B88000D82C66 /* CVProgrammerTests.swift in Sources */,
 				C7046EC230856D0D00E21A82 /* Z21TransportTests.swift in Sources */,

@@ -18,74 +18,51 @@ final class Z21Client: ObservableObject, CVBackend {
     private let eventsSubject = PassthroughSubject<CVEvent, Never>()
     var cvEvents: AnyPublisher<CVEvent, Never> { eventsSubject.eraseToAnyPublisher() }
 
-    private let transportFactory: @MainActor () -> any Z21Transport
-    private let protocolCodec: any Z21ProtocolCodec
-    private var transport: (any Z21Transport)?
+    private let session: Z21Session
     private var connectionTask: Task<Void, Never>?
-    private var receiveTask: Task<Void, Never>?
-    private var connectionID = UUID()
+    private var messageTask: Task<Void, Never>?
+    private var stateTask: Task<Void, Never>?
 
     private var waiters: [UInt8: CheckedContinuation<UInt8?, Never>] = [:]
     private var writeWaiters: [UInt8: CheckedContinuation<Bool, Never>] = [:]
 
 
     init(
-        transportFactory: @escaping @MainActor () -> any Z21Transport = {
+        transportFactory: @escaping Z21Session.TransportFactory = {
             Z21UDPTransport()
         },
         protocolCodec: any Z21ProtocolCodec = DefaultZ21ProtocolCodec()
     ) {
-        self.transportFactory = transportFactory
-        self.protocolCodec = protocolCodec
+        session = Z21Session(
+            transportFactory: transportFactory,
+            codec: protocolCodec
+        )
+        observeSession()
     }
 
     func connect(host: String, port: UInt16) {
-        disconnect()
-
-        let newTransport = transportFactory()
-        let newConnectionID = UUID()
-        transport = newTransport
-        connectionID = newConnectionID
-        isRunning = true
-
+        connectionTask?.cancel()
         appendLog("Starting UDP connection to \(host):\(port)")
 
-        receiveTask = Task { [weak self] in
-            for await packet in newTransport.incomingPackets {
-                guard !Task.isCancelled else { return }
-                self?.handleInboundPacket(packet)
-            }
-        }
-
-        connectionTask = Task { [weak self] in
+        connectionTask = Task { [weak self, session] in
             do {
-                try await newTransport.connect(host: host, port: port)
-                guard let self, self.connectionID == newConnectionID else { return }
-                self.appendLog("UDP ready.")
+                try await session.connect(host: host, port: port)
             } catch is CancellationError {
                 return
             } catch {
-                guard let self, self.connectionID == newConnectionID else { return }
-                self.appendLog("Connection failed: \(error.localizedDescription)")
-                self.disconnect()
+                self?.appendLog("Connection failed: \(error.localizedDescription)")
             }
         }
     }
 
     func disconnect() {
-        connectionID = UUID()
         connectionTask?.cancel()
         connectionTask = nil
-        receiveTask?.cancel()
-        receiveTask = nil
-
-        if let transport {
-            Task {
-                await transport.close()
-            }
-        }
-        transport = nil
         isRunning = false
+
+        Task { [session] in
+            await session.disconnect()
+        }
 
         for (_, continuation) in waiters {
             continuation.resume(returning: nil)
@@ -108,17 +85,12 @@ final class Z21Client: ObservableObject, CVBackend {
             eventsSubject.send(.failure("Invalid CV number"))
             return
         }
-        do {
-            let packet = try protocolCodec.encode(
-                .pomReadByte(
-                    locomotiveAddress: locoAddress,
-                    cvAddress: UInt16(cv - 1)
-                )
+        send(
+            .pomReadByte(
+                locomotiveAddress: locoAddress,
+                cvAddress: UInt16(cv - 1)
             )
-            send(packet)
-        } catch {
-            eventsSubject.send(.failure(error.localizedDescription))
-        }
+        )
     }
 
     func writeCV(locoAddress: UInt16?, cv: UInt8, value: UInt8) {
@@ -127,18 +99,13 @@ final class Z21Client: ObservableObject, CVBackend {
             eventsSubject.send(.failure("Invalid CV number"))
             return
         }
-        do {
-            let packet = try protocolCodec.encode(
-                .pomWriteByte(
-                    locomotiveAddress: locoAddress,
-                    cvAddress: UInt16(cv - 1),
-                    value: value
-                )
+        send(
+            .pomWriteByte(
+                locomotiveAddress: locoAddress,
+                cvAddress: UInt16(cv - 1),
+                value: value
             )
-            send(packet)
-        } catch {
-            eventsSubject.send(.failure(error.localizedDescription))
-        }
+        )
     }
 
     func readCVAsync(locoAddress: UInt16, cv: UInt8, timeoutMs: Int = 800) async -> UInt8? {
@@ -154,19 +121,12 @@ final class Z21Client: ObservableObject, CVBackend {
 
                 self.waiters[cv1] = cont
 
-                do {
-                    let packet = try self.protocolCodec.encode(
-                        .pomReadByte(
-                            locomotiveAddress: locoAddress,
-                            cvAddress: UInt16(cv - 1)
-                        )
+                self.send(
+                    .pomReadByte(
+                        locomotiveAddress: locoAddress,
+                        cvAddress: UInt16(cv - 1)
                     )
-                    self.send(packet)
-                } catch {
-                    self.waiters.removeValue(forKey: cv1)?.resume(returning: nil)
-                    self.eventsSubject.send(.failure(error.localizedDescription))
-                    return
-                }
+                )
 
                 Task { [weak self] in
                     try? await Task.sleep(nanoseconds: UInt64(timeoutMs) * 1_000_000)
@@ -195,20 +155,14 @@ final class Z21Client: ObservableObject, CVBackend {
                 self.writeWaiters[cv1] = cont
 
                 // send
-                do {
-                    let packet = try self.protocolCodec.encode(
-                        .pomWriteByte(
-                            locomotiveAddress: locoAddress,
-                            cvAddress: UInt16(cv - 1),
-                            value: value
-                        )
-                    )
-                    self.send(packet, note: "WRITE CV \(cv)=\(value)")
-                } catch {
-                    self.writeWaiters.removeValue(forKey: cv1)?.resume(returning: false)
-                    self.eventsSubject.send(.failure(error.localizedDescription))
-                    return
-                }
+                self.send(
+                    .pomWriteByte(
+                        locomotiveAddress: locoAddress,
+                        cvAddress: UInt16(cv - 1),
+                        value: value
+                    ),
+                    note: "WRITE CV \(cv)=\(value)"
+                )
 
                 // timeout
                 Task { [weak self] in
@@ -223,55 +177,88 @@ final class Z21Client: ObservableObject, CVBackend {
         }
     }
 
-    private func send(_ data: Data, note: String? = nil) {
-        guard let transport else {
-            appendLog("Not connected; cannot send.")
-            return
+    func enableBroadcastFlags(_ flags: Z21BroadcastFlags) {
+        Task { [weak self, session] in
+            do {
+                _ = try await session.enableBroadcastFlags(flags)
+            } catch {
+                self?.appendLog(
+                    "Broadcast subscription failed: \(error.localizedDescription)"
+                )
+            }
+        }
+    }
+
+    private func observeSession() {
+        stateTask = Task { [weak self, session] in
+            for await state in session.connectionStates {
+                guard !Task.isCancelled else { return }
+                self?.handleConnectionState(state)
+            }
         }
 
-        if let note { appendLog("→ \(note)") }
-        appendLog("  bytes: \(data.hexString)")
+        messageTask = Task { [weak self, session] in
+            for await message in session.messages {
+                guard !Task.isCancelled else { return }
+                self?.handleInboundMessage(message)
+            }
+        }
+    }
 
-        Task { [weak self] in
+    private func send(_ command: Z21Command, note: String? = nil) {
+        if let note { appendLog("→ \(note)") }
+
+        Task { [weak self, session] in
             do {
-                try await transport.send(data)
+                try await session.send(command)
             } catch {
                 self?.appendLog("Send error: \(error.localizedDescription)")
             }
         }
     }
 
-    private func handleInboundPacket(_ content: Data) {
-        appendLog("← RX bytes: \(content.hexString)")
+    private func handleConnectionState(_ state: Z21ConnectionState) {
+        switch state {
+            case .disconnected:
+                isRunning = false
+                appendLog("UDP disconnected.")
+            case .connecting:
+                isRunning = false
+                appendLog("UDP connecting.")
+            case .synchronized:
+                isRunning = true
+                appendLog("UDP ready.")
+            case .degraded:
+                isRunning = false
+                appendLog("UDP connection degraded.")
+        }
+    }
 
-        do {
-            let message = try protocolCodec.decode(content)
+    private func handleInboundMessage(_ message: Z21Message) {
+        switch message {
+            case .cvResult(let cvAddress, let value):
+                guard let cv = UInt8(exactly: cvAddress + 1) else {
+                    let error = Z21ProtocolCodecError.invalidCVAddress(cvAddress)
+                    appendLog("  protocol error: \(error.localizedDescription)")
+                    eventsSubject.send(.failure(error.localizedDescription))
+                    return
+                }
+                eventsSubject.send(.cvReadResult(cv: cv, value: value))
+                if let continuation = waiters.removeValue(forKey: cv) {
+                    continuation.resume(returning: value)
+                }
+                // If writing CV desarm waiter
+                if let continuation = writeWaiters.removeValue(forKey: cv) {
+                    continuation.resume(returning: true)
+                }
+                appendLog("  event: CV_RESULT cv=\(cv) value=\(value)")
 
-            switch message {
-                case .cvResult(let cvAddress, let value):
-                    guard let cv = UInt8(exactly: cvAddress + 1) else {
-                        throw Z21ProtocolCodecError.invalidCVAddress(cvAddress)
-                    }
-                    eventsSubject.send(.cvReadResult(cv: cv, value: value))
-                    if let continuation = waiters.removeValue(forKey: cv) {
-                        continuation.resume(returning: value)
-                    }
-                    // If writing CV desarm waiter
-                    if let continuation = writeWaiters.removeValue(forKey: cv) {
-                        continuation.resume(returning: true)
-                    }
-                    appendLog("  event: CV_RESULT cv=\(cv) value=\(value)")
+            case .cvNack:
+                eventsSubject.send(.failure("CV read/write NACK"))
+                appendLog("  event: CV_NACK")
 
-                case .cvNack:
-                    eventsSubject.send(.failure("CV read/write NACK"))
-                    appendLog("  event: CV_NACK")
-
-                case .unknown(let header, _):
-                    appendLog(String(format: "  event: UNKNOWN header=0x%04X", header))
-            }
-        } catch {
-            appendLog("  protocol error: \(error.localizedDescription)")
-            eventsSubject.send(.failure(error.localizedDescription))
+            case .unknown(let header, _):
+                appendLog(String(format: "  event: UNKNOWN header=0x%04X", header))
         }
     }
 
@@ -292,11 +279,5 @@ final class Z21Client: ObservableObject, CVBackend {
 
     func appendExternalLog(_ line: String) {
         appendLog(line)
-    }
-}
-
-private extension Data {
-    var hexString: String {
-        map { String(format: "%02X", $0) }.joined(separator: " ")
     }
 }
