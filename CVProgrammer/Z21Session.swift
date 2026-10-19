@@ -39,6 +39,7 @@ actor Z21Session {
         [UUID: AsyncStream<Z21Message>.Continuation] = [:]
     private let transportFactory: TransportFactory
     private let codec: any Z21ProtocolCodec
+    private let diagnosticLogger: any Z21DiagnosticLogging
 
     private var transport: (any Z21Transport)?
     private var listenerTask: Task<Void, Never>?
@@ -51,10 +52,12 @@ actor Z21Session {
         transportFactory: @escaping TransportFactory = {
             Z21UDPTransport()
         },
-        codec: any Z21ProtocolCodec = DefaultZ21ProtocolCodec()
+        codec: any Z21ProtocolCodec = DefaultZ21ProtocolCodec(),
+        diagnosticLogger: any Z21DiagnosticLogging = Z21DiagnosticLogger()
     ) {
         self.transportFactory = transportFactory
         self.codec = codec
+        self.diagnosticLogger = diagnosticLogger
     }
 
     func connect(host: String, port: UInt16) async throws {
@@ -115,6 +118,13 @@ actor Z21Session {
         }
 
         let packet = try codec.encode(command)
+        await diagnosticLogger.record(
+            level: .info,
+            direction: .transmit,
+            commandName: command.diagnosticName,
+            summary: command.diagnosticSummary,
+            rawBytes: packet
+        )
         try await transport.send(packet)
     }
 
@@ -164,17 +174,29 @@ actor Z21Session {
         connectionState
     }
 
-    private func route(_ packet: Data, generation: UUID) {
+    private func route(_ packet: Data, generation: UUID) async {
         guard connectionGeneration == generation else { return }
 
         do {
             let message = try codec.decode(packet)
+            await diagnosticLogger.record(
+                level: .info,
+                direction: .receive,
+                commandName: message.diagnosticName,
+                summary: message.diagnosticSummary,
+                rawBytes: packet
+            )
             for continuation in messageContinuations.values {
                 continuation.yield(message)
             }
         } catch {
-            // Protocol diagnostics are added in ticket 013. Malformed or unsupported
-            // packets must not terminate the session or reach message consumers.
+            await diagnosticLogger.record(
+                level: .error,
+                direction: .receive,
+                commandName: "MALFORMED_PACKET",
+                summary: error.localizedDescription,
+                rawBytes: packet
+            )
         }
     }
 
@@ -198,8 +220,14 @@ actor Z21Session {
     private func sendBroadcastFlags(
         using transport: any Z21Transport
     ) async throws {
-        let packet = try codec.encode(
-            .setBroadcastFlags(broadcastFlags.rawValue)
+        let command = Z21Command.setBroadcastFlags(broadcastFlags.rawValue)
+        let packet = try codec.encode(command)
+        await diagnosticLogger.record(
+            level: .info,
+            direction: .transmit,
+            commandName: command.diagnosticName,
+            summary: command.diagnosticSummary,
+            rawBytes: packet
         )
         try await transport.send(packet)
     }

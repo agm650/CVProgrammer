@@ -21,6 +21,7 @@ final class Z21Client: ObservableObject, CVBackend {
     private let session: Z21Session
     let rBusService: RBusService
     let deviceProgrammingService: Z21DeviceProgrammingService
+    let diagnosticLogger: Z21DiagnosticLogger
     private var connectionTask: Task<Void, Never>?
     private var messageTask: Task<Void, Never>?
     private var stateTask: Task<Void, Never>?
@@ -33,13 +34,16 @@ final class Z21Client: ObservableObject, CVBackend {
         transportFactory: @escaping Z21Session.TransportFactory = {
             Z21UDPTransport()
         },
-        protocolCodec: any Z21ProtocolCodec = DefaultZ21ProtocolCodec()
+        protocolCodec: any Z21ProtocolCodec = DefaultZ21ProtocolCodec(),
+        diagnosticLogger: Z21DiagnosticLogger = Z21DiagnosticLogger()
     ) {
         let session = Z21Session(
             transportFactory: transportFactory,
-            codec: protocolCodec
+            codec: protocolCodec,
+            diagnosticLogger: diagnosticLogger
         )
         self.session = session
+        self.diagnosticLogger = diagnosticLogger
         rBusService = RBusService(session: session)
         deviceProgrammingService = Z21DeviceProgrammingService(
             commandSender: session

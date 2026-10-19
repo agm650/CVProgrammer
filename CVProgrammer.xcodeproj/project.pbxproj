@@ -29,6 +29,8 @@
 		C7046EE6308571C700E21A82 /* DeviceProgrammingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7046EE5308571C700E21A82 /* DeviceProgrammingService.swift */; };
 		C7046EE8308571F300E21A82 /* Roco10819ProgrammingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7046EE7308571F300E21A82 /* Roco10819ProgrammingTests.swift */; };
 		C7046EEA3085725200E21A82 /* Z21AccessoryPOMTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7046EE93085725200E21A82 /* Z21AccessoryPOMTests.swift */; };
+		C7046EEC3085F98A00E21A82 /* Z21DiagnosticLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7046EEB3085F98A00E21A82 /* Z21DiagnosticLogger.swift */; };
+		C7046EEE3085F9A400E21A82 /* Z21DiagnosticLoggerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7046EED3085F9A400E21A82 /* Z21DiagnosticLoggerTests.swift */; };
 		C7A03EBE2EF8B87900D82C66 /* CVProgrammerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7A03EBD2EF8B87900D82C66 /* CVProgrammerApp.swift */; };
 		C7A03EC02EF8B87900D82C66 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7A03EBF2EF8B87900D82C66 /* ContentView.swift */; };
 		C7A03EC22EF8B88000D82C66 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C7A03EC12EF8B88000D82C66 /* Assets.xcassets */; };
@@ -89,6 +91,8 @@
 		C7046EE5308571C700E21A82 /* DeviceProgrammingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceProgrammingService.swift; sourceTree = "<group>"; };
 		C7046EE7308571F300E21A82 /* Roco10819ProgrammingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Roco10819ProgrammingTests.swift; sourceTree = "<group>"; };
 		C7046EE93085725200E21A82 /* Z21AccessoryPOMTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Z21AccessoryPOMTests.swift; sourceTree = "<group>"; };
+		C7046EEB3085F98A00E21A82 /* Z21DiagnosticLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Z21DiagnosticLogger.swift; sourceTree = "<group>"; };
+		C7046EED3085F9A400E21A82 /* Z21DiagnosticLoggerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Z21DiagnosticLoggerTests.swift; sourceTree = "<group>"; };
 		C7A03EBA2EF8B87900D82C66 /* CVProgrammer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CVProgrammer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C7A03EBD2EF8B87900D82C66 /* CVProgrammerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CVProgrammerApp.swift; sourceTree = "<group>"; };
 		C7A03EBF2EF8B87900D82C66 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; wrapsLines = 0; };
@@ -188,6 +192,7 @@
 				C7046EDF3085715A00E21A82 /* Roco10819.swift */,
 				C7046EE13085715A00E21A82 /* Roco10819MonitorView.swift */,
 				C7046EE5308571C700E21A82 /* DeviceProgrammingService.swift */,
+				C7046EEB3085F98A00E21A82 /* Z21DiagnosticLogger.swift */,
 			);
 			path = CVProgrammer;
 			sourceTree = "<group>";
@@ -215,6 +220,7 @@
 				C7046EE33085716E00E21A82 /* Roco10819Tests.swift */,
 				C7046EE7308571F300E21A82 /* Roco10819ProgrammingTests.swift */,
 				C7046EE93085725200E21A82 /* Z21AccessoryPOMTests.swift */,
+				C7046EED3085F9A400E21A82 /* Z21DiagnosticLoggerTests.swift */,
 			);
 			path = CVProgrammerTests;
 			sourceTree = "<group>";
@@ -373,6 +379,7 @@
 				C7A03EF32EF8C05100D82C66 /* CVMetaDataStore.swift in Sources */,
 				C7A8370A2F12EFF0000B8C90 /* CVBackend.swift in Sources */,
 				C7046ECE30856ED100E21A82 /* RBusService.swift in Sources */,
+				C7046EEC3085F98A00E21A82 /* Z21DiagnosticLogger.swift in Sources */,
 				C7046ECA30856E5A00E21A82 /* RBusModels.swift in Sources */,
 				C7046EE03085715A00E21A82 /* Roco10819.swift in Sources */,
 				C7046EC030856CDD00E21A82 /* Z21Transport.swift in Sources */,
@@ -390,6 +397,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				C7046EE43085716E00E21A82 /* Roco10819Tests.swift in Sources */,
+				C7046EEE3085F9A400E21A82 /* Z21DiagnosticLoggerTests.swift in Sources */,
 				C7046ECC30856E8800E21A82 /* Z21RBusProtocolTests.swift in Sources */,
 				C7046EC830856E3200E21A82 /* Z21SessionTests.swift in Sources */,
 				C7046EC430856D9800E21A82 /* Z21ProtocolCodecTests.swift in Sources */,
