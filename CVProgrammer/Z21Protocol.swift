@@ -6,6 +6,7 @@ enum Z21Command: Equatable, Sendable {
     case pomAccessoryWriteByte(accessoryAddress: UInt16, cvAddress: UInt16, value: UInt8)
     case setBroadcastFlags(UInt32)
     case rBusGetData(groupIndex: UInt8)
+    case rBusProgramModule(address: UInt8)
 }
 
 enum Z21Message: Equatable, Sendable {
@@ -25,6 +26,7 @@ enum Z21ProtocolCodecError: Error, Equatable, LocalizedError, Sendable {
     case invalidAccessoryAddress(UInt16)
     case invalidCVAddress(UInt16)
     case invalidRBusGroupIndex(UInt8)
+    case invalidRBusModuleAddress(UInt8)
 
     var errorDescription: String? {
         switch self {
@@ -46,6 +48,8 @@ enum Z21ProtocolCodecError: Error, Equatable, LocalizedError, Sendable {
                 return "Invalid zero-based CV address: \(address)."
             case .invalidRBusGroupIndex(let groupIndex):
                 return "Invalid R-BUS group index: \(groupIndex)."
+            case .invalidRBusModuleAddress(let address):
+                return "Invalid R-BUS module address: \(address). Use an address from 0 through 20."
         }
     }
 }
@@ -99,6 +103,11 @@ struct DefaultZ21ProtocolCodec: Z21ProtocolCodec {
                     throw Z21ProtocolCodecError.invalidRBusGroupIndex(groupIndex)
                 }
                 return Data([0x05, 0x00, 0x81, 0x00, groupIndex])
+            case .rBusProgramModule(let address):
+                guard address <= 20 else {
+                    throw Z21ProtocolCodecError.invalidRBusModuleAddress(address)
+                }
+                return Data([0x05, 0x00, 0x82, 0x00, address])
         }
     }
 

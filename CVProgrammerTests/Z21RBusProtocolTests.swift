@@ -18,6 +18,29 @@ struct Z21RBusProtocolTests {
     }
 
     @Test
+    func encodesRBusModuleAddressProgramming() throws {
+        #expect(
+            try codec.encode(.rBusProgramModule(address: 1))
+                == Data([0x05, 0x00, 0x82, 0x00, 0x01])
+        )
+        #expect(
+            try codec.encode(.rBusProgramModule(address: 20))
+                == Data([0x05, 0x00, 0x82, 0x00, 0x14])
+        )
+        #expect(
+            try codec.encode(.rBusProgramModule(address: 0))
+                == Data([0x05, 0x00, 0x82, 0x00, 0x00])
+        )
+    }
+
+    @Test
+    func rejectsInvalidRBusModuleAddress() {
+        expectCodecError(.invalidRBusModuleAddress(21)) {
+            try codec.encode(.rBusProgramModule(address: 21))
+        }
+    }
+
+    @Test
     func mapsGroupZeroToAddressesOneThroughTen() throws {
         let message = try codec.decode(
             rBusPacket(groupIndex: 0, statuses: [0x81] + Array(repeating: 0, count: 9))

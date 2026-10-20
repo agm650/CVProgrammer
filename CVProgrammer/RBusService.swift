@@ -6,6 +6,8 @@ protocol RBusServicing: Sendable {
 
     func start() async throws
     func refresh() async throws
+    func startModuleAddressProgramming(address: UInt8) async throws
+    func stopModuleAddressProgramming() async throws
     func stop() async
 }
 
@@ -84,6 +86,14 @@ actor RBusService: RBusServicing {
     func refresh() async throws {
         try await session.send(.rBusGetData(groupIndex: 0))
         try await session.send(.rBusGetData(groupIndex: 1))
+    }
+
+    func startModuleAddressProgramming(address: UInt8) async throws {
+        try await session.send(.rBusProgramModule(address: address))
+    }
+
+    func stopModuleAddressProgramming() async throws {
+        try await session.send(.rBusProgramModule(address: 0))
     }
 
     func stop() {

@@ -117,6 +117,10 @@ private final class FakeRBusMonitorService: RBusServicing, @unchecked Sendable {
         if let error { throw error }
     }
 
+    func startModuleAddressProgramming(address: UInt8) async throws {}
+
+    func stopModuleAddressProgramming() async throws {}
+
     func stop() async {}
 
     func send(groups: [RBusGroupState]) {

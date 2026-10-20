@@ -106,6 +106,21 @@ struct RBusServiceTests {
         #expect(receivedUpdates[2][0].inputs[7].state == .occupied)
     }
 
+    @Test
+    func startsAndStopsModuleAddressProgramming() async throws {
+        let (service, transport) = try await makeService()
+
+        try await service.startModuleAddressProgramming(address: 12)
+        try await service.stopModuleAddressProgramming()
+
+        #expect(
+            await transport.sentPackets() == [
+                Data([0x05, 0x00, 0x82, 0x00, 0x0C]),
+                Data([0x05, 0x00, 0x82, 0x00, 0x00])
+            ]
+        )
+    }
+
     private func makeService() async throws -> (
         service: RBusService,
         transport: FakeZ21Transport

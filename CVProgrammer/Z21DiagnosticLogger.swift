@@ -126,6 +126,7 @@ extension Z21Command {
                 return "LAN_X_CV_POM_ACCESSORY_WRITE_BYTE"
             case .setBroadcastFlags: return "LAN_SET_BROADCASTFLAGS"
             case .rBusGetData: return "LAN_RMBUS_GETDATA"
+            case .rBusProgramModule: return "LAN_RMBUS_PROGRAMMODULE"
         }
     }
 
@@ -141,6 +142,8 @@ extension Z21Command {
                 return String(format: "flags=0x%08X", flags)
             case .rBusGetData(let groupIndex):
                 return "group=\(groupIndex)"
+            case .rBusProgramModule(let address):
+                return address == 0 ? "stop" : "address=\(address)"
         }
     }
 }

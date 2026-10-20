@@ -3,12 +3,21 @@ import SwiftUI
 struct Roco10819MonitorView: View {
     let groups: [RBusGroupState]
     let programmingService: (any DeviceProgramming)?
+    let showModules: () -> Void
+    @Environment(\.dismiss) private var dismiss
     @State private var baseAddress = UInt8(1)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(Roco10819Profile.displayName)
-                .font(.title2.bold())
+            HStack {
+                Button("Modules", action: showModules)
+                Text(Roco10819Profile.displayName)
+                    .font(.title2.bold())
+                Spacer()
+                Button("Close") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                    .accessibilityIdentifier("roco10819.close")
+            }
 
             Picker("R-BUS base address", selection: $baseAddress) {
                 ForEach(UInt8(1)...UInt8(19), id: \.self) { address in

@@ -31,6 +31,10 @@ final class RBusMonitorUITestService: RBusServicing, @unchecked Sendable {
 
     func refresh() async throws {}
 
+    func startModuleAddressProgramming(address: UInt8) async throws {}
+
+    func stopModuleAddressProgramming() async throws {}
+
     func stop() async {
         updateTask?.cancel()
         updateTask = nil
