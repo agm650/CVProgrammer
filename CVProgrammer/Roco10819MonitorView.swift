@@ -93,6 +93,10 @@ private struct Roco10819ProgrammingView: View {
             )
             .foregroundStyle(.orange)
 
+            Text("Keep R-BUS addresses continuous from 1. The 10819 occupies the selected base address and the following address; make sure neither is already assigned to another module.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
             if let parameter {
                 HStack {
                     Picker("Parameter", selection: $selectedParameterID) {

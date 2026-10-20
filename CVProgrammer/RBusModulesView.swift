@@ -138,6 +138,10 @@ private struct RBusEightInputModuleView: View {
                 )
                 .foregroundStyle(.orange)
 
+                Text("Keep R-BUS addresses continuous from 1 and make sure the selected address is not already assigned to another module.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
                 HStack {
                     Button("Start Address Programming") { startProgramming() }
                         .disabled(isProgramming || isSending)
