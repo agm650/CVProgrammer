@@ -7,6 +7,20 @@
 
 import SwiftUI
 
+private enum Z21ProgrammingTab: String, CaseIterable, Identifiable {
+    case locomotive
+    case accessory
+
+    var id: String { rawValue }
+
+    var title: LocalizedStringKey {
+        switch self {
+            case .locomotive: return "Locomotive"
+            case .accessory: return "Accessory"
+        }
+    }
+}
+
 enum CommandStationType: String, CaseIterable, Identifiable {
     case z21 = "z21"
     case dccEx = "dccEx"
@@ -28,6 +42,7 @@ struct ContentView: View {
     private var preferredProtocolRaw: String = CommandStationType.z21.rawValue
     @State private var type: CommandStationType = .z21
     @State private var isShowingRBusMonitor = false
+    @State private var z21ProgrammingTab: Z21ProgrammingTab = .locomotive
 
     @AppStorage(PreferencesKeys.remoteIP) private var remoteIPStored: String = "192.168.0.111"
     private var host: String {
@@ -122,19 +137,20 @@ struct ContentView: View {
                             .frame(width: 10, height: 10)
                         Text(client.isRunning ? "Ready" : "Not connected")
                             .foregroundStyle(.secondary)
-
-                        Spacer()
-
-                        if type == .z21 {
-                            Button("R-BUS Monitor…") {
-                                isShowingRBusMonitor = true
-                            }
-                            .accessibilityIdentifier("rbus.open")
-                        }
                     }
                 }
 
                 if type == .z21 {
+                    Picker("Programming type", selection: $z21ProgrammingTab) {
+                        ForEach(Z21ProgrammingTab.allCases) { tab in
+                            Text(tab.title).tag(tab)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("z21.programmingTab")
+                }
+
+                if type == .z21 && z21ProgrammingTab == .accessory {
                     GroupBox("Accessory Decoder POM") {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
@@ -179,11 +195,19 @@ struct ContentView: View {
                             Text("Accessory POM writes do not provide confirmation. Reading is not offered because it requires RailCom support from both the Z21 and the accessory decoder.")
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
+
+                            Divider()
+
+                            Button("R-BUS Monitor…") {
+                                isShowingRBusMonitor = true
+                            }
+                            .accessibilityIdentifier("rbus.open")
                         }
                     }
                 }
 
-                GroupBox(type == .z21 ? "POM (Programming on the Main)" : "Programming Track (Service Mode)") {
+                if type != .z21 || z21ProgrammingTab == .locomotive {
+                    GroupBox(type == .z21 ? "POM (Programming on the Main)" : "Programming Track (Service Mode)") {
                     VStack(alignment: .leading, spacing: 10) {
 
                         metadataErrorView
@@ -334,7 +358,7 @@ struct ContentView: View {
                     }
                 }
 
-                GroupBox("CV Results") {
+                    GroupBox("CV Results") {
                     Table(rows, selection: $selectedCV) {
                         TableColumn("CV") { row in
                             Text("\(row.cv)").monospacedDigit()
@@ -351,6 +375,7 @@ struct ContentView: View {
                         }
                     }
                     .frame(minHeight: 220, maxHeight: 220)
+                    }
                 }
 
                 GroupBox {
