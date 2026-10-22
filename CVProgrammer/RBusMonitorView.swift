@@ -234,7 +234,7 @@ private struct RBusStateLabel: View {
 
     private var symbol: String {
         switch state {
-            case .free: return "circle"
+            case .free: return "circle.fill"
             case .occupied: return "circle.fill"
             case .unknown: return "questionmark.circle"
         }
@@ -242,7 +242,7 @@ private struct RBusStateLabel: View {
 
     private var color: Color {
         switch state {
-            case .free: return .green
+            case .free: return Color(red: 0.0, green: 0.55, blue: 0.18)
             case .occupied: return .red
             case .unknown: return .secondary
         }
