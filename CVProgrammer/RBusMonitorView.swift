@@ -229,6 +229,7 @@ private struct RBusStateLabel: View {
         } icon: {
             Image(systemName: symbol)
         }
+        .foregroundStyle(color)
     }
 
     private var symbol: String {
@@ -236,6 +237,14 @@ private struct RBusStateLabel: View {
             case .free: return "circle"
             case .occupied: return "circle.fill"
             case .unknown: return "questionmark.circle"
+        }
+    }
+
+    private var color: Color {
+        switch state {
+            case .free: return .green
+            case .occupied: return .red
+            case .unknown: return .secondary
         }
     }
 }
