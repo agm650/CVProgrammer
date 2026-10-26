@@ -29,6 +29,14 @@ final class RBusMonitorUITestService: RBusServicing, @unchecked Sendable {
         }
     }
 
+    func groupStream() async -> AsyncStream<[RBusGroupState]> {
+        groups
+    }
+
+    func connectionStateStream() async -> AsyncStream<Z21ConnectionState> {
+        connectionStates
+    }
+
     func refresh() async throws {}
 
     func startModuleAddressProgramming(address: UInt8) async throws {}

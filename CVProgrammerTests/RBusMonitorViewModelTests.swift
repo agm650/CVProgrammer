@@ -109,6 +109,14 @@ private final class FakeRBusMonitorService: RBusServicing, @unchecked Sendable {
 
     func start() async throws {}
 
+    func groupStream() async -> AsyncStream<[RBusGroupState]> {
+        groups
+    }
+
+    func connectionStateStream() async -> AsyncStream<Z21ConnectionState> {
+        connectionStates
+    }
+
     func refresh() async throws {
         let error = lock.withLock { () -> Error? in
             storedRefreshCount += 1

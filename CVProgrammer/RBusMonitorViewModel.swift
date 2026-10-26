@@ -36,13 +36,15 @@ final class RBusMonitorViewModel: ObservableObject {
     func start() async {
         guard groupsTask == nil else { return }
 
-        groupsTask = Task { [weak self, groups = service.groups] in
+        let groups = await service.groupStream()
+        let states = await service.connectionStateStream()
+        groupsTask = Task { [weak self] in
             for await groups in groups {
                 guard !Task.isCancelled else { return }
                 self?.apply(groups)
             }
         }
-        connectionTask = Task { [weak self, states = service.connectionStates] in
+        connectionTask = Task { [weak self] in
             for await state in states {
                 guard !Task.isCancelled else { return }
                 self?.connectionState = state
@@ -74,7 +76,6 @@ final class RBusMonitorViewModel: ObservableObject {
         groupsTask = nil
         connectionTask?.cancel()
         connectionTask = nil
-        Task { await service.stop() }
     }
 
     func dismissError() {

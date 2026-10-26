@@ -37,7 +37,9 @@ struct RBusServiceTests {
     @Test
     func updatesGroupZeroAndLeavesGroupOneUnknown() async throws {
         let (service, transport) = try await makeService()
-        let update = nextUpdate(afterInitialValueFrom: service.groups)
+        let update = nextUpdate(
+            afterInitialValueFrom: await service.groupStream()
+        )
         try await service.start()
 
         await transport.inject(
@@ -60,7 +62,9 @@ struct RBusServiceTests {
     @Test
     func updatesGroupOneIndependently() async throws {
         let (service, transport) = try await makeService()
-        let update = nextUpdate(afterInitialValueFrom: service.groups)
+        let update = nextUpdate(
+            afterInitialValueFrom: await service.groupStream()
+        )
         try await service.start()
 
         await transport.inject(
@@ -82,7 +86,10 @@ struct RBusServiceTests {
     @Test
     func appliesSuccessiveChangesInOrder() async throws {
         let (service, transport) = try await makeService()
-        let updates = collectUpdates(from: service.groups, count: 3)
+        let updates = collectUpdates(
+            from: await service.groupStream(),
+            count: 3
+        )
         try await service.start()
 
         await transport.inject(
@@ -119,6 +126,29 @@ struct RBusServiceTests {
                 Data([0x05, 0x00, 0x82, 0x00, 0x00])
             ]
         )
+    }
+
+    @Test
+    func restartingMonitorPublishesCachedState() async throws {
+        let (service, transport) = try await makeService()
+        var firstMonitor = await service.groupStream().makeAsyncIterator()
+        _ = await firstMonitor.next()
+        try await service.start()
+
+        await transport.inject(
+            rBusPacket(
+                groupIndex: 0,
+                statuses: [0x01] + Array(repeating: 0, count: 9)
+            )
+        )
+        _ = await firstMonitor.next()
+
+        var reopenedMonitor = await service.groupStream().makeAsyncIterator()
+        try await service.start()
+        let cachedGroups = await reopenedMonitor.next()
+
+        #expect(cachedGroups?[0].inputs[0].state == .occupied)
+        #expect(cachedGroups?[0].lastUpdate == fixedDate)
     }
 
     private func makeService() async throws -> (

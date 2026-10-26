@@ -1,9 +1,8 @@
 import Foundation
 
 protocol RBusServicing: Sendable {
-    var groups: AsyncStream<[RBusGroupState]> { get }
-    var connectionStates: AsyncStream<Z21ConnectionState> { get }
-
+    func groupStream() async -> AsyncStream<[RBusGroupState]>
+    func connectionStateStream() async -> AsyncStream<Z21ConnectionState>
     func start() async throws
     func refresh() async throws
     func startModuleAddressProgramming(address: UInt8) async throws
@@ -12,17 +11,16 @@ protocol RBusServicing: Sendable {
 }
 
 actor RBusService: RBusServicing {
-    nonisolated let groups: AsyncStream<[RBusGroupState]>
-    nonisolated let connectionStates: AsyncStream<Z21ConnectionState>
-
-    private let groupsContinuation:
-        AsyncStream<[RBusGroupState]>.Continuation
-    private let connectionStatesContinuation:
-        AsyncStream<Z21ConnectionState>.Continuation
     private let session: Z21Session
     private let now: @Sendable () -> Date
 
     private var groupStates: [RBusGroupState]
+    private var groupContinuations: [
+        UUID: AsyncStream<[RBusGroupState]>.Continuation
+    ] = [:]
+    private var connectionStateContinuations: [
+        UUID: AsyncStream<Z21ConnectionState>.Continuation
+    ] = [:]
     private var messageTask: Task<Void, Never>?
     private var connectionStateTask: Task<Void, Never>?
     private var lastConnectionState: Z21ConnectionState = .disconnected
@@ -37,15 +35,28 @@ actor RBusService: RBusServicing {
             RBusGroupState(address: UInt8($0))
         }
 
-        let stream = AsyncStream<[RBusGroupState]>.makeStream()
-        groups = stream.stream
-        groupsContinuation = stream.continuation
-        groupsContinuation.yield(groupStates)
+    }
 
-        let stateStream = AsyncStream<Z21ConnectionState>.makeStream()
-        connectionStates = stateStream.stream
-        connectionStatesContinuation = stateStream.continuation
-        connectionStatesContinuation.yield(.disconnected)
+    func groupStream() -> AsyncStream<[RBusGroupState]> {
+        let id = UUID()
+        let pair = AsyncStream<[RBusGroupState]>.makeStream()
+        groupContinuations[id] = pair.continuation
+        pair.continuation.onTermination = { [weak self] _ in
+            Task { await self?.removeGroupContinuation(id: id) }
+        }
+        pair.continuation.yield(groupStates)
+        return pair.stream
+    }
+
+    func connectionStateStream() -> AsyncStream<Z21ConnectionState> {
+        let id = UUID()
+        let pair = AsyncStream<Z21ConnectionState>.makeStream()
+        connectionStateContinuations[id] = pair.continuation
+        pair.continuation.onTermination = { [weak self] _ in
+            Task { await self?.removeConnectionStateContinuation(id: id) }
+        }
+        pair.continuation.yield(lastConnectionState)
+        return pair.stream
     }
 
     func start() async throws {
@@ -54,7 +65,7 @@ actor RBusService: RBusServicing {
         let messages = await session.messageStream()
         let connectionStates = await session.connectionStateStream()
         lastConnectionState = await session.currentConnectionState()
-        connectionStatesContinuation.yield(lastConnectionState)
+        yieldConnectionState(lastConnectionState)
 
         messageTask = Task { [weak self] in
             for await message in messages {
@@ -122,7 +133,7 @@ actor RBusService: RBusServicing {
             }
             groupStates[stateIndex].lastUpdate = updateDate
         }
-        groupsContinuation.yield(groupStates)
+        yieldGroups()
     }
 
     private func processConnectionState(
@@ -131,7 +142,7 @@ actor RBusService: RBusServicing {
         guard newState != lastConnectionState else { return }
 
         lastConnectionState = newState
-        connectionStatesContinuation.yield(newState)
+        yieldConnectionState(newState)
         switch newState {
             case .disconnected, .connecting, .degraded:
                 markAllInputsStale()
@@ -146,6 +157,26 @@ actor RBusService: RBusServicing {
                 groupStates[groupIndex].inputs[inputIndex].isStale = true
             }
         }
-        groupsContinuation.yield(groupStates)
+        yieldGroups()
+    }
+
+    private func yieldGroups() {
+        for continuation in groupContinuations.values {
+            continuation.yield(groupStates)
+        }
+    }
+
+    private func yieldConnectionState(_ state: Z21ConnectionState) {
+        for continuation in connectionStateContinuations.values {
+            continuation.yield(state)
+        }
+    }
+
+    private func removeGroupContinuation(id: UUID) {
+        groupContinuations[id] = nil
+    }
+
+    private func removeConnectionStateContinuation(id: UUID) {
+        connectionStateContinuations[id] = nil
     }
 }

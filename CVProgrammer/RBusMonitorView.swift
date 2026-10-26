@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct RBusMonitorView: View {
+    @Environment(\.dismiss) private var dismiss
     @StateObject private var model: RBusMonitorViewModel
     @State private var isShowingModules = false
     private let service: any RBusServicing
@@ -21,7 +22,8 @@ struct RBusMonitorView: View {
         VStack(alignment: .leading, spacing: 12) {
             RBusMonitorHeaderView(
                 model: model,
-                showModules: { isShowingModules = true }
+                showModules: { isShowingModules = true },
+                close: { dismiss() }
             )
             RBusMonitorLegendView()
 
@@ -58,6 +60,7 @@ struct RBusMonitorView: View {
 private struct RBusMonitorHeaderView: View {
     @ObservedObject var model: RBusMonitorViewModel
     let showModules: () -> Void
+    let close: () -> Void
 
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
@@ -90,6 +93,10 @@ private struct RBusMonitorHeaderView: View {
             }
             .disabled(model.connectionState != .synchronized || model.isRefreshing)
             .accessibilityIdentifier("rbus.refresh")
+
+            Button("Close", action: close)
+                .keyboardShortcut(.cancelAction)
+                .accessibilityIdentifier("rbus.close")
         }
     }
 
